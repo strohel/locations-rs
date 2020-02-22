@@ -1,0 +1,5 @@
+# This project uses rustfmt to format source code. Run `cargo fmt [-- --check].
+# https://github.com/rust-lang/rustfmt/blob/master/Configurations.md
+
+# Break complex but short statements a bit less. Used by rustc, Fuschia, will probably be the future default.
+use_small_heuristics = "Max"
