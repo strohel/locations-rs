@@ -11,7 +11,6 @@
 // Turn on some extra Clippy (Rust code linter) warnings. Run `cargo clippy`.
 #![warn(clippy::all, clippy::nursery)]
 
-use async_std;
 use env_logger::DEFAULT_FILTER_ENV;
 use std::{env, io};
 
@@ -20,7 +19,7 @@ mod handlers;
 /// Convenience type alias to be used by handlers.
 type Request = tide::Request<()>;
 
-#[async_std::main]
+#[tokio::main]
 async fn main() -> io::Result<()> {
     // Set default log level to info and then init logging.
     if env::var(DEFAULT_FILTER_ENV).is_err() {
