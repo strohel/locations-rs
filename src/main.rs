@@ -1,3 +1,5 @@
+//! Little proof-of-concept webservice in Rust, using experimental [tide] web framework.
+
 // Make writing "unsafe" in code a compilation error. We should not need unsafe at all.
 #![forbid(unsafe_code)]
 // Warn on generally recommended lints that are not enabled by default.
@@ -13,8 +15,9 @@ use async_std;
 use env_logger::DEFAULT_FILTER_ENV;
 use std::{env, io};
 
-mod errors;
+mod handlers;
 
+/// Convenience type alias to be used by handlers.
 type Request = tide::Request<()>;
 
 #[async_std::main]
@@ -28,8 +31,10 @@ async fn main() -> io::Result<()> {
     let mut app = tide::new();
     app.middleware(tide::middleware::RequestLogger::new());
 
-    app.at("/").all(errors::fallback_endpoint);
-    app.at("/*").all(errors::fallback_endpoint);
+    app.at("/city/v1/get").get(handlers::city::get);
+
+    app.at("/").all(handlers::fallback::not_found);
+    app.at("/*").all(handlers::fallback::not_found);
 
     app.listen("127.0.0.1:8080").await
 }
