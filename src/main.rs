@@ -21,7 +21,7 @@ mod handlers;
 /// Convenience type alias to be used by handlers.
 type Request = tide::Request<AppState>;
 
-#[tokio::main]
+#[async_std::main]
 async fn main() -> io::Result<()> {
     // Set default log level to info and then init logging.
     if env::var(DEFAULT_FILTER_ENV).is_err() {
