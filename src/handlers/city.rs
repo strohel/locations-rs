@@ -2,14 +2,15 @@
 
 use crate::{
     response::{
-        ErrorResponse::{InternalServerError, NotFound},
+        ErrorResponse::{BadRequest, InternalServerError, NotFound},
         JsonResponse, JsonResult,
     },
     Request,
 };
 use elasticsearch::GetParts;
 use log::info;
-use serde::{Deserialize, Serialize};
+use serde::{de::IgnoredAny, Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Query for the `/city/v1/get` endpoint.
 #[derive(Deserialize)]
@@ -49,18 +50,14 @@ pub(crate) async fn get(req: Request) -> JsonResult<CityResponse> {
     info!("Elasticsearch response body: {:?}.", response_body);
 
     let es_city = response_body._source;
+    let name_key = format!("name.{}", query.language);
+    let name = es_city.names.get(&name_key).ok_or_else(|| BadRequest(name_key))?;
+
     let city = CityResponse {
         countryISO: es_city.countryISO,
         id: es_city.id,
         isFeatured: false, // TODO: isFeatured is not yet in Elastic
-        name: match query.language.as_str() {
-            "cs" => es_city.name_cs,
-            "de" => es_city.name_de,
-            "en" => es_city.name_en,
-            "pl" => es_city.name_pl,
-            "sk" => es_city.name_sk,
-            _ => es_city.name_en,
-        },
+        name: name.to_string(),
         regionName: format!("Region#{}", es_city.regionId), // TODO
     };
     Ok(JsonResponse(city))
@@ -74,17 +71,12 @@ struct ElasticGetResponse<T> {
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
 struct ElasticCity {
+    centroid: [f64; 2],
     countryISO: String,
+    geometry: IgnoredAny, // Consume the key do that it doesn't appear in `names`, but don't parse.
     id: u64,
-    #[serde(rename = "name.cs")]
-    name_cs: String,
-    #[serde(rename = "name.de")]
-    name_de: String,
-    #[serde(rename = "name.en")]
-    name_en: String,
-    #[serde(rename = "name.pl")]
-    name_pl: String,
-    #[serde(rename = "name.sk")]
-    name_sk: String,
     regionId: u64,
+
+    #[serde(flatten)] // captures rest of fields, see https://serde.rs/attr-flatten.html
+    names: HashMap<String, String>,
 }
