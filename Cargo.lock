@@ -610,7 +610,7 @@ dependencies = [
  "indexmap",
  "log",
  "slab",
- "tokio 0.2.12",
+ "tokio 0.2.13",
  "tokio-util",
 ]
 
@@ -780,7 +780,7 @@ dependencies = [
  "net2",
  "pin-project",
  "time",
- "tokio 0.2.12",
+ "tokio 0.2.13",
  "tower-service",
  "want 0.3.0",
 ]
@@ -794,7 +794,7 @@ dependencies = [
  "bytes 0.5.4",
  "hyper 0.13.2",
  "native-tls",
- "tokio 0.2.12",
+ "tokio 0.2.13",
  "tokio-tls",
 ]
 
@@ -938,6 +938,8 @@ dependencies = [
  "log",
  "pretty_env_logger",
  "serde",
+ "serde_json",
+ "thiserror",
  "tide",
 ]
 
@@ -994,9 +996,9 @@ checksum = "2a60c7ce501c71e03a9c9c0d35b861413ae925bd979cc7a4e30d060069aaac8d"
 
 [[package]]
 name = "mime_guess"
-version = "2.0.1"
+version = "2.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a0ed03949aef72dbdf3116a383d7b38b4768e6f960528cd6a6044aa9ed68599"
+checksum = "2684d4c2e97d99848d30b324b00c8fcc7e5c897b7cbb5819b09e7c90e8baf212"
 dependencies = [
  "mime",
  "unicase",
@@ -1400,7 +1402,7 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "time",
- "tokio 0.2.12",
+ "tokio 0.2.13",
  "tokio-tls",
  "url 2.1.1",
  "wasm-bindgen",
@@ -1682,6 +1684,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "thiserror"
+version = "1.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee14bf8e6767ab4c687c9e8bc003879e042a96fd67a3ba5934eadb6536bef4db"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a7b51e1fbc44b5a0840be594fbc0f960be09050f2617e61e6aa43bef97cd3ef4"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "thread_local"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1693,7 +1715,7 @@ dependencies = [
 [[package]]
 name = "tide"
 version = "0.6.0"
-source = "git+https://github.com/strohel/tide.git?branch=intoresponse-for-result#c260f2747aeb87ea46ae0695cba072976af8c6c2"
+source = "git+https://github.com/strohel/tide.git?branch=intoresponse-for-result#9b3b2ed68cdfd87feac01fadb09f1741fd32f401"
 dependencies = [
  "async-std",
  "cookie",
@@ -1741,9 +1763,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "0.2.12"
+version = "0.2.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b34bee1facdc352fba10c9c58b654e6ecb6a2250167772bf86071f7c5f2f5061"
+checksum = "0fa5e81d6bc4e67fe889d5783bd2a128ab2e0cfa487e0be16b6a8d177b101616"
 dependencies = [
  "bytes 0.5.4",
  "fnv",
@@ -1876,7 +1898,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7bde02a3a5291395f59b06ec6945a3077602fac2b07eeeaf0dee2122f3619828"
 dependencies = [
  "native-tls",
- "tokio 0.2.12",
+ "tokio 0.2.13",
 ]
 
 [[package]]
@@ -1890,7 +1912,7 @@ dependencies = [
  "futures-sink",
  "log",
  "pin-project-lite",
- "tokio 0.2.12",
+ "tokio 0.2.13",
 ]
 
 [[package]]

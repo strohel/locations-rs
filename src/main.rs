@@ -17,6 +17,7 @@ use log::info;
 use std::{env, io};
 
 mod handlers;
+mod response;
 
 /// Convenience type alias to be used by handlers.
 type Request = tide::Request<AppState>;

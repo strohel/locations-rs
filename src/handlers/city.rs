@@ -1,10 +1,15 @@
 //! Handlers for /city/* endpoints.
 
-use crate::{handlers::IntoOkResponse, Request};
+use crate::{
+    response::{
+        ErrorResponse::{InternalServerError, NotFound},
+        JsonResponse, JsonResult,
+    },
+    Request,
+};
 use elasticsearch::GetParts;
-use log::{error, info};
+use log::info;
 use serde::{Deserialize, Serialize};
-use tide::ResultExt;
 
 /// Query for the `/city/v1/get` endpoint.
 #[derive(Deserialize)]
@@ -16,7 +21,7 @@ struct CityQuery {
 /// All city endpoints respond with this payload (or a composition of it).
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct CityResponse {
+pub(crate) struct CityResponse {
     #[serde(rename = "countryISO")]
     country_iso: String,
     id: u64,
@@ -25,30 +30,23 @@ struct CityResponse {
     region_name: String,
 }
 
-/// The `/city/v1/get` endpoint. HTTP input: [CityQuery], output: [CityResponse].
-pub(crate) async fn get(req: Request) -> tide::Result {
+/// The `/city/v1/get` endpoint. HTTP input: [CityQuery].
+pub(crate) async fn get(req: Request) -> JsonResult<CityResponse> {
     let query: CityQuery = req.query()?;
 
     let es = &req.state().elasticsearch;
-    let es_response =
-        es.get(GetParts::IndexId("city", &query.id.to_string())).send().await.server_err()?;
+    let es_response = es.get(GetParts::IndexId("city", &query.id.to_string())).send().await?;
 
     let es_resp_code = es_response.status_code().as_u16();
     info!("Elasticsearch response status: {}.", es_resp_code);
     if es_resp_code == 404 {
-        return Ok(tide::Response::new(404).body_string(format!("City#{} not found.\n", query.id)));
+        return Err(NotFound(format!("City#{} not found.", query.id)));
     }
     if es_resp_code != 200 {
-        return Ok(tide::Response::new(500).body_string(format!("ES response {}.\n", es_resp_code)));
+        return Err(InternalServerError(format!("ES response {}.", es_resp_code)));
     }
 
-    let response_body_res = es_response.read_body::<ElasticGetResponse<ElasticCity>>().await;
-    let response_body = response_body_res
-        .map_err(|e| {
-            error!("Failed to read ES response: {}", e);
-            e
-        })
-        .server_err()?;
+    let response_body = es_response.read_body::<ElasticGetResponse<ElasticCity>>().await?;
     info!("Elasticsearch response body: {:?}.", response_body);
 
     let es_city = response_body._source;
@@ -66,7 +64,7 @@ pub(crate) async fn get(req: Request) -> tide::Result {
         },
         region_name: format!("Region#{}", es_city.region_id), // TODO
     };
-    city.into_ok_response()
+    Ok(JsonResponse(city))
 }
 
 #[derive(Debug, Deserialize)]
