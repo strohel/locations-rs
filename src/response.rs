@@ -1,6 +1,7 @@
 //! OK and error response types to be used by endpoints.
 
 use http::status::StatusCode;
+use log::{log, Level};
 use serde::Serialize;
 use tide::{IntoResponse, QueryParseError, Response};
 
@@ -38,6 +39,13 @@ impl ErrorResponse {
             Self::InternalServerError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
+
+    fn severity(&self) -> Level {
+        match self {
+            Self::BadRequest(_) | Self::NotFound(_) => Level::Warn,
+            Self::InternalServerError(_) => Level::Error,
+        }
+    }
 }
 
 /// Make Tide framework understand our error responses.
@@ -48,8 +56,10 @@ impl IntoResponse for ErrorResponse {
             message: String,
         }
 
-        let payload = ErrorPayload { message: self.to_string() };
-        JsonResponse(payload).with_status(self.status()).into_response()
+        let status = self.status();
+        let message = self.to_string();
+        log!(self.severity(), "Responding with HTTP {}: {}", status, message);
+        JsonResponse(ErrorPayload { message }).with_status(status).into_response()
     }
 }
 
