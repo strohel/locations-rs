@@ -19,15 +19,14 @@ struct CityQuery {
 }
 
 /// All city endpoints respond with this payload (or a composition of it).
+#[allow(non_snake_case)]
 #[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
 pub(crate) struct CityResponse {
-    #[serde(rename = "countryISO")]
-    country_iso: String,
+    countryISO: String,
     id: u64,
-    is_featured: bool,
+    isFeatured: bool,
     name: String,
-    region_name: String,
+    regionName: String,
 }
 
 /// The `/city/v1/get` endpoint. HTTP input: [CityQuery].
@@ -51,9 +50,9 @@ pub(crate) async fn get(req: Request) -> JsonResult<CityResponse> {
 
     let es_city = response_body._source;
     let city = CityResponse {
-        country_iso: es_city.country_iso,
+        countryISO: es_city.countryISO,
         id: es_city.id,
-        is_featured: es_city.is_featured,
+        isFeatured: false, // TODO: isFeatured is not yet in Elastic
         name: match query.language.as_str() {
             "cs" => es_city.name_cs,
             "de" => es_city.name_de,
@@ -62,7 +61,7 @@ pub(crate) async fn get(req: Request) -> JsonResult<CityResponse> {
             "sk" => es_city.name_sk,
             _ => es_city.name_en,
         },
-        region_name: format!("Region#{}", es_city.region_id), // TODO
+        regionName: format!("Region#{}", es_city.regionId), // TODO
     };
     Ok(JsonResponse(city))
 }
@@ -72,15 +71,12 @@ struct ElasticGetResponse<T> {
     _source: T,
 }
 
+#[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct ElasticCity {
-    #[serde(rename = "countryISO")]
-    country_iso: String,
+    countryISO: String,
     id: u64,
-    #[serde(default)] // TODO: isFeatured is not yet in Elastic, fall-back to default of false
-    is_featured: bool,
-    #[serde(rename = "name.cs")] // TODO: serde surely has better way to do this
+    #[serde(rename = "name.cs")]
     name_cs: String,
     #[serde(rename = "name.de")]
     name_de: String,
@@ -90,5 +86,5 @@ struct ElasticCity {
     name_pl: String,
     #[serde(rename = "name.sk")]
     name_sk: String,
-    region_id: u64,
+    regionId: u64,
 }
