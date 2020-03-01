@@ -11,6 +11,7 @@
 // Turn on some extra Clippy (Rust code linter) warnings. Run `cargo clippy`.
 #![warn(clippy::all, clippy::nursery)]
 
+use crate::stateful::elasticsearch::WithElasticsearch;
 use elasticsearch::Elasticsearch;
 use env_logger::DEFAULT_FILTER_ENV;
 use std::{env, io};
@@ -50,5 +51,11 @@ impl AppState {
         let elasticsearch = stateful::elasticsearch::new().await;
 
         Self { elasticsearch }
+    }
+}
+
+impl WithElasticsearch for AppState {
+    fn elasticsearch(&self) -> &Elasticsearch {
+        &self.elasticsearch
     }
 }

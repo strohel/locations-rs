@@ -4,6 +4,12 @@ use elasticsearch::{http::transport::Transport, Elasticsearch};
 use log::info;
 use std::env;
 
+/// Trait to be implemented by application states that contain stateful Elasticsearch client.
+pub(crate) trait WithElasticsearch {
+    /// Get reference to stateful Elasticsearch client.
+    fn elasticsearch(&self) -> &Elasticsearch;
+}
+
 /// Construct Elasticsearch client. Reads `GOOUT_ELASTIC_HOST`, `GOOUT_ELASTIC_PORT` env variables.
 ///
 /// # Panics

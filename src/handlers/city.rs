@@ -5,6 +5,7 @@ use crate::{
         ErrorResponse::{BadRequest, InternalServerError, NotFound},
         JsonResponse, JsonResult,
     },
+    stateful::elasticsearch::WithElasticsearch,
     Request,
 };
 use elasticsearch::GetParts;
@@ -34,7 +35,7 @@ pub(crate) struct CityResponse {
 pub(crate) async fn get(req: Request) -> JsonResult<CityResponse> {
     let query: CityQuery = req.query()?;
 
-    let es = &req.state().elasticsearch;
+    let es = req.state().elasticsearch();
     let es_response = es.get(GetParts::IndexId("city", &query.id.to_string())).send().await?;
 
     let es_resp_code = es_response.status_code().as_u16();
