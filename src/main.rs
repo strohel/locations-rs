@@ -16,9 +16,16 @@ use elasticsearch::Elasticsearch;
 use env_logger::DEFAULT_FILTER_ENV;
 use std::{env, io};
 
-mod handlers;
+/// Module for endpoint handlers (also known as controllers).
+mod handlers {
+    pub(crate) mod city;
+    pub(crate) mod fallback;
+}
 mod response;
-mod stateful;
+/// Module for "stateful" services - those that need initialisation on startup and a living state.
+mod stateful {
+    pub(crate) mod elasticsearch;
+}
 
 /// Convenience type alias to be used by handlers.
 type Request = tide::Request<AppState>;
