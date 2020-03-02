@@ -9,7 +9,7 @@
 // Warn when we don't implement (derive) commonly needed traits. May be too strict.
 #![warn(missing_copy_implementations, missing_debug_implementations)]
 // Turn on some extra Clippy (Rust code linter) warnings. Run `cargo clippy`.
-#![warn(clippy::all, clippy::nursery)]
+#![warn(clippy::all)]
 
 use crate::stateful::elasticsearch::WithElasticsearch;
 use elasticsearch::Elasticsearch;
