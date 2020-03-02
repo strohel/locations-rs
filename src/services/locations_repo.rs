@@ -8,7 +8,7 @@ use crate::{
     stateful::elasticsearch::WithElasticsearch,
 };
 use async_trait::async_trait;
-use elasticsearch::GetParts;
+use elasticsearch::GetParts::IndexTypeId;
 use log::debug;
 use serde::{de::IgnoredAny, Deserialize};
 use std::collections::HashMap;
@@ -39,7 +39,7 @@ pub(crate) struct ElasticCity {
 impl<S: WithElasticsearch + Send + Sync> LocationsElasticRepository for S {
     async fn get_city(&self, id: u64) -> Result<ElasticCity, ErrorResponse> {
         let es = self.elasticsearch();
-        let response = es.get(GetParts::IndexId("city", &id.to_string())).send().await?;
+        let response = es.get(IndexTypeId("city", "_source", &id.to_string())).send().await?;
 
         let response_code = response.status_code().as_u16();
         debug!("Elasticsearch response status: {}.", response_code);
@@ -50,15 +50,9 @@ impl<S: WithElasticsearch + Send + Sync> LocationsElasticRepository for S {
             return Err(InternalServerError(format!("ES response {}.", response_code)));
         }
 
-        let response_body = response.read_body::<ElasticGetResponse<ElasticCity>>().await?;
+        let response_body = response.read_body::<ElasticCity>().await?;
         debug!("Elasticsearch response body: {:?}.", response_body);
 
-        Ok(response_body._source)
+        Ok(response_body)
     }
-}
-
-/// Helper struct, Elasticsearch `get` responses are wrapped into this structure.
-#[derive(Debug, Deserialize)]
-struct ElasticGetResponse<T> {
-    _source: T,
 }
