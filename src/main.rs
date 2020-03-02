@@ -22,6 +22,10 @@ mod handlers {
     pub(crate) mod fallback;
 }
 mod response;
+/// Module for stateless services (that may depend on stateful ones from [stateful] module).
+mod services {
+    pub(crate) mod locations_repo;
+}
 /// Module for "stateful" services - those that need initialisation on startup and a living state.
 mod stateful {
     pub(crate) mod elasticsearch;
