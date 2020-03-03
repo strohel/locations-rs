@@ -29,7 +29,7 @@ pub(crate) struct CityResponse {
 pub(crate) async fn get(req: Request) -> JsonResult<CityResponse> {
     let query: CityQuery = req.query()?;
 
-    let locations_es_repo = req.state(); // can be typed to `impl LocationsElasticRepository` in future Rust
+    let locations_es_repo = LocationsElasticRepository(req.state());
     let es_city = locations_es_repo.get_city(query.id).await?;
     let es_region = locations_es_repo.get_region(es_city.regionId).await?;
 

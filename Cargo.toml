@@ -7,7 +7,6 @@ edition = "2018"
 [dependencies]
 elasticsearch = { git = "https://github.com/strohel/elasticsearch-rs.git", branch = "port-from-reqwest-to-surf" }
 async-std = { version = "1.5", features = ["attributes"]}
-async-trait = "0.1"
 env_logger = "0.7"
 http = "0.1"
 log = "0.4"
