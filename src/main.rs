@@ -50,7 +50,7 @@ async fn main() -> io::Result<()> {
     app.at("/").all(handlers::fallback::not_found);
     app.at("/*").all(handlers::fallback::not_found);
 
-    app.listen("127.0.0.1:8080").await
+    app.listen("0.0.0.0:8080").await
 }
 
 struct AppState {
