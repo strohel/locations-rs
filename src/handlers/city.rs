@@ -25,7 +25,7 @@ pub(crate) struct CityResponse {
     regionName: String,
 }
 
-/// The `/city/v1/get` endpoint. HTTP input: [CityQuery].
+/// The `/city/v1/get` endpoint. Request: [CityQuery], response: [CityResponse].
 pub(crate) async fn get(req: Request) -> JsonResult<CityResponse> {
     let query: CityQuery = req.query()?;
 
