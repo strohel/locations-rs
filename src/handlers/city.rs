@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Deserialize)]
 struct CityQuery {
     id: u64,
-    language: String, // TODO: serde can probably limit to 2 chars
+    language: String,
 }
 
 /// All city endpoints respond with this payload (or a composition of it).
