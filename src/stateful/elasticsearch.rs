@@ -19,8 +19,8 @@ pub(crate) trait WithElasticsearch {
 pub(crate) async fn new() -> Elasticsearch {
     let es_url = format!(
         "http://{}:{}/",
-        env::var("GOOUT_ELASTIC_HOST").unwrap(),
-        env::var("GOOUT_ELASTIC_PORT").unwrap()
+        env::var("GOOUT_ELASTIC_HOST").expect("GOOUT_ELASTIC_HOST env variable"),
+        env::var("GOOUT_ELASTIC_PORT").expect("GOOUT_ELASTIC_PORT env variable")
     );
     let es_transport = Transport::single_node(&es_url).unwrap();
     let elasticsearch = Elasticsearch::new(es_transport);
