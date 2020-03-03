@@ -1,0 +1,5 @@
+# Ignore everything except what is explicitly mentioned, defensive approach:
+*
+!src
+!Cargo.toml
+!Cargo.lock
