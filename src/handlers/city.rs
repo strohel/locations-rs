@@ -31,16 +31,18 @@ pub(crate) async fn get(req: Request) -> JsonResult<CityResponse> {
 
     let locations_es_repo = req.state(); // can be typed to `impl LocationsElasticRepository` in future Rust
     let es_city = locations_es_repo.get_city(query.id).await?;
+    let es_region = locations_es_repo.get_region(es_city.regionId).await?;
 
     let name_key = format!("name.{}", query.language);
-    let name = es_city.names.get(&name_key).ok_or_else(|| BadRequest(name_key))?;
+    let name = es_city.names.get(&name_key).ok_or_else(|| BadRequest(name_key.clone()))?;
+    let region_name = es_region.names.get(&name_key).ok_or_else(|| BadRequest(name_key))?;
 
     let city = CityResponse {
         countryISO: es_city.countryISO,
         id: es_city.id,
         isFeatured: false, // TODO: isFeatured is not yet in Elastic
         name: name.to_string(),
-        regionName: format!("Region#{}", es_city.regionId), // TODO
+        regionName: region_name.to_string(),
     };
     Ok(JsonResponse(city))
 }
