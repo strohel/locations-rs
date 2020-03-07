@@ -174,13 +174,6 @@ def http_check_plzen_cs(session: requests.Session):
 
 
 @http_check
-def http_check_plzen_cs(session: requests.Session):
-    """HTTP GET /city/v1/get?id=101748111&language=cs returns 200 and correct object"""
-    res = session.get(URL_PREFIX + "/city/v1/get?id=101748111&language=cs")
-    assert_city_reply(res, 101748111, "Plzeň", "Plzeňský kraj")
-
-
-@http_check
 def http_check_brno_de(session: requests.Session):
     """HTTP GET /city/v1/get?id=101748109&language=de returns 200 and correct object"""
     res = session.get(URL_PREFIX + "/city/v1/get?id=101748109&language=de")
