@@ -94,6 +94,11 @@ def logs_each_request(container_id, session):
     assert path in out, f"got {len(out.splitlines())} lines of log: \n{out}"
 
 
+def test_local():
+    with requests.Session() as session:
+        perform_http_checks(session)
+
+
 def perform_http_checks(session):
     for func in HTTP_CHECK_FUNCS:
         check(func, session)
@@ -196,6 +201,10 @@ def assert_city_reply(res: requests.Response, expected_id, expected_city, expect
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
-        print(f"Usage: {sys.argv[0]} docker-image-with-optional:tag")
+        print(f"Usage: {sys.argv[0]} (docker-image/with-optional:tag | --local)")
         exit(1)
-    test_image(sys.argv[1])
+    arg = sys.argv[1]
+    if arg == '--local':
+        test_local()
+    else:
+        test_image(arg)
