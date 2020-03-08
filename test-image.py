@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
 from contextlib import contextmanager
+from concurrent.futures import ThreadPoolExecutor
 import os
 import sys
+from threading import Event
 from time import sleep, perf_counter
 import traceback
 
@@ -26,6 +28,9 @@ def test_image(image):
         check(logs_on_startup, container)
         check(logs_each_request, container, session)
         perform_http_checks(session)
+
+        with collect_stats(container):
+            pass  # TODO: run stress tests
 
 
 @contextmanager
@@ -179,6 +184,30 @@ def assert_city_reply(res: requests.Response, expected_id, expected_city, expect
     assert type(json['isFeatured']) == bool, json  # Not yet in Elastic, check just type
     assert json['name'] == expected_city, (expected_city, json)
     assert json['regionName'] == expected_region, (expected_region, json)
+
+
+@contextmanager
+def collect_stats(container):
+    thread_executor = ThreadPoolExecutor(max_workers=1)
+    event = Event()
+    collect_stats_future = thread_executor.submit(collect_stats_thread, container, event)
+
+    try:
+        yield
+    finally:
+        event.set()
+        assert collect_stats_future.result(2) is None  # catch possible exception from the thread
+
+
+def collect_stats_thread(container, event: Event):
+    for stats in container.stats(decode=True):
+        # TODO: parse "read" date
+        cpu_total_ms = stats['cpu_stats']['cpu_usage']['total_usage'] / 1000**2
+        mem_usage_mb = stats['memory_stats']['usage'] / 1024**2
+        mem_max_usage_mb = stats['memory_stats']['max_usage'] / 1024**2
+        print(f'cpu_total_ms: {cpu_total_ms} mem_usage_mb: {mem_usage_mb} mem_max_usage_mb: {mem_max_usage_mb}')
+        if event.is_set():
+            break
 
 
 if __name__ == '__main__':
