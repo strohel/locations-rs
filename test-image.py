@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
 from contextlib import contextmanager
+import os
 import sys
-import subprocess
-from subprocess import PIPE, STDOUT
 from time import sleep, perf_counter
 import traceback
 
+import docker
 import requests
 
 
@@ -15,46 +15,35 @@ HTTP_CHECK_FUNCS = []
 
 
 def test_image(image):
-    with run_container(image) as container_id, requests.Session() as session:
-        print(f"Container started, to tail its logs: docker logs -f -t {container_id}")
+    dockerc = docker.from_env()
+    with run_container(dockerc, image) as container, requests.Session() as session:
+        print(f"Container started, to tail its logs: docker logs -f -t {container.id}")
         start = perf_counter()
         wait_for_container_ready(session)
         start_duration = perf_counter() - start
         print(f"Service has started responding in {start_duration}s.")
 
-        check(logs_on_startup, container_id)
-        check(logs_each_request, container_id, session)
+        check(logs_on_startup, container)
+        check(logs_each_request, container, session)
         perform_http_checks(session)
 
 
 @contextmanager
-def run_container(image):
+def run_container(dockerc: docker.DockerClient, image):
     # Give only 1s of CPU-core-time per each wall clock second. (can still run in parallel). Lets the rest of the
     # system breathe and better simulates Kubernetes environment (which uses the same method of capping CPU).
-    cpu_limit = "--cpus=1.0"
-    # 500 MB should be a conservative limit of something called a microservice. Setting swap to same value to disable.
-    memory_limits = ["--memory=512m", "--memory-swap=512m"]
-    process = run(["docker", "run", "--rm", "-d", "-e=GOOUT_ELASTIC_HOST", "-e=GOOUT_ELASTIC_PORT", "-p=8080:8080",
-                   cpu_limit, *memory_limits, image],
-                  check=True, capture_output=True, text=True)
-    container_id = process.stdout.strip()
+    nano_cpus = 10**9
+    # 512 MB should be a conservative limit of something called a microservice. Setting swap to same value to disable.
+    mem_limit = "512m"
+    environment = {key: os.environ[key] for key in ('GOOUT_ELASTIC_HOST', 'GOOUT_ELASTIC_PORT')}
+
+    container = dockerc.containers.run(
+        image, auto_remove=True, detach=True, nano_cpus=nano_cpus, mem_limit=mem_limit, memswap_limit=mem_limit,
+        ports={8080: 8080}, environment=environment)
     try:
-        yield container_id
+        yield container
     finally:
-        run(["docker", "kill", container_id], capture_output=True)
-
-
-def run(program_args, verbose=True, **kwargs):
-    if verbose:
-        print(f"$ {' '.join(program_args)}")
-    try:
-        return subprocess.run(program_args, **kwargs)
-    except subprocess.CalledProcessError as e:
-        if e.stdout:
-            print(f"stdout: {e.stdout}")
-        if e.stderr:
-            print(f"stderr: {e.stderr}")
-        raise
+        container.kill()
 
 
 def wait_for_container_ready(session):
@@ -76,21 +65,21 @@ def check(func, *args):
         func(*args)
         print("Good")
     except AssertionError as e:
-        failed_line = traceback.extract_tb(sys.exc_info()[2])[-1].line  # magic to extrac the "assert line"
+        failed_line = traceback.extract_tb(sys.exc_info()[2])[-1].line  # magic to extract the "assert line"
         print(f"Bad: {failed_line}: {e}")
 
 
-def logs_on_startup(container_id):
+def logs_on_startup(container):
     """Service logs a message containing 8080 (used port) on startup"""
-    out = run(["docker", "logs", container_id], verbose=False, check=True, stdout=PIPE, stderr=STDOUT, text=True).stdout
+    out = container.logs().decode()
     assert "8080" in out, f"got {len(out.splitlines())} lines of log: \n{out}"
 
 
-def logs_each_request(container_id, session):
+def logs_each_request(container, session):
     """Service logs every request, message contains url path"""
     path = "/blablaGOGOthisIsCanaryValue"
     session.get(URL_PREFIX + path)
-    out = run(["docker", "logs", container_id], verbose=False, check=True, stdout=PIPE, stderr=STDOUT, text=True).stdout
+    out = container.logs().decode()
     assert path in out, f"got {len(out.splitlines())} lines of log: \n{out}"
 
 
