@@ -184,7 +184,7 @@ def assert_city_reply(res: requests.Response, expected_id, expected_city, expect
     assert res.status_code == 200, (res, res.text)
     assert res.headers['content-type'] == 'application/json', res.headers
     json = res.json()
-    assert json.keys() == set(['countryISO', 'id', 'isFeatured', 'name', 'regionName']), json
+    assert json.keys() == {'countryISO', 'id', 'isFeatured', 'name', 'regionName'}, json
     assert json['countryISO'] == 'CZ', json
     assert json['id'] == expected_id, (expected_id, json)
     assert type(json['isFeatured']) == bool, json  # Not yet in Elastic, check just type
