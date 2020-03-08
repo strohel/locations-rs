@@ -129,8 +129,8 @@ def http_check_just_id_param(session: requests.Session):
 
 @http_check
 def http_check_invalid_id(session: requests.Session):
-    """HTTP GET /city/v1/get?id=blabla returns 400 with error JSON with message"""
-    res = session.get(URL_PREFIX + "/city/v1/get?id=blabla")
+    """HTTP GET /city/v1/get?id=blabla&language=cs returns 400 with error JSON with message"""
+    res = session.get(URL_PREFIX + "/city/v1/get?id=blabla&language=cs")
     assert_error_reply(res, 400)
 
 
