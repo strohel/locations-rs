@@ -33,7 +33,7 @@ def run_container(image):
     # system breathe and better simulates Kubernetes environment (which uses the same method of capping CPU).
     cpu_limit = "--cpus=1.0"
     # 500 MB should be a conservative limit of something called a microservice. Setting swap to same value to disable.
-    memory_limits = ["--memory=500m", "--memory-swap=500m"]
+    memory_limits = ["--memory=512m", "--memory-swap=512m"]
     process = run(["docker", "run", "--rm", "-d", "-e=GOOUT_ELASTIC_HOST", "-e=GOOUT_ELASTIC_PORT", "-p=8080:8080",
                    cpu_limit, *memory_limits, image],
                   check=True, capture_output=True, text=True)
