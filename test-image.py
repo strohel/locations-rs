@@ -164,22 +164,29 @@ def assert_error_reply(res: requests.Response, expected_code):
 def http_check_plzen_cs(session: requests.Session):
     """HTTP GET /city/v1/get?id=101748111&language=cs returns 200 and correct object"""
     res = session.get(URL_PREFIX + "/city/v1/get?id=101748111&language=cs")
-    assert_city_reply(res, 101748111, "Plzeň", "Plzeňský kraj")
+    assert_city_reply(res, 101748111, "Plzeň", "Plzeňský kraj", "CZ")
 
 
 @http_check
 def http_check_brno_de(session: requests.Session):
     """HTTP GET /city/v1/get?id=101748109&language=de returns 200 and correct object"""
     res = session.get(URL_PREFIX + "/city/v1/get?id=101748109&language=de")
-    assert_city_reply(res, 101748109, "Brünn", "Südmährische Region")
+    assert_city_reply(res, 101748109, "Brünn", "Südmährische Region", "CZ")
 
 
-def assert_city_reply(res: requests.Response, expected_id, expected_city, expected_region):
+@http_check
+def http_check_graz_cs_extra_param(session: requests.Session):
+    """HTTP GET /city/v1/get?id=1108839329&language=cs&extra=paramShouldBeIgnored returns 200 and correct object"""
+    res = session.get(URL_PREFIX + "/city/v1/get?id=1108839329&language=cs&extra=paramShouldBeIgnored")
+    assert_city_reply(res, 1108839329, "Štýrský Hradec", "Štýrsko", "AT")
+
+
+def assert_city_reply(res: requests.Response, expected_id, expected_city, expected_region, expected_country):
     assert res.status_code == 200, (res, res.text)
     assert res.headers['content-type'] == 'application/json', res.headers
     json = res.json()
     assert json.keys() == {'countryISO', 'id', 'isFeatured', 'name', 'regionName'}, json
-    assert json['countryISO'] == 'CZ', json
+    assert json['countryISO'] == expected_country, (expected_country, json)
     assert json['id'] == expected_id, (expected_id, json)
     assert type(json['isFeatured']) == bool, json  # Not yet in Elastic, check just type
     assert json['name'] == expected_city, (expected_city, json)
