@@ -41,10 +41,11 @@ def run_container(dockerc: docker.DockerClient, image):
     # 512 MB should be a conservative limit of something called a microservice. Setting swap to same value to disable.
     mem_limit = "512m"
     environment = {key: os.environ[key] for key in ('GOOUT_ELASTIC_HOST', 'GOOUT_ELASTIC_PORT')}
+    cpuset_cpus = "0-3"  # Assign 4 logical CPUs to the container to simulate our real cluster.
 
     container = dockerc.containers.run(
         image, auto_remove=True, detach=True, nano_cpus=nano_cpus, mem_limit=mem_limit, memswap_limit=mem_limit,
-        ports={8080: 8080}, environment=environment)
+        ports={8080: 8080}, environment=environment, cpuset_cpus=cpuset_cpus)
     try:
         yield container
     finally:
