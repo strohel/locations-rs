@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
 from contextlib import contextmanager
-from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 import os
+import re
+import subprocess
 import sys
-from threading import Event
 from time import sleep, perf_counter
 import traceback
 
@@ -14,6 +15,24 @@ import requests
 
 URL_PREFIX = "http://127.0.0.1:8080"
 HTTP_CHECK_FUNCS = []
+TOTAL_REQUESTS = 0
+TOTAL_REQUEST_ERRORS = 0
+STATS = []
+
+
+@dataclass
+class Stats:
+    message: str
+    cpu_total_s: float
+    cpu_new_s: float
+    mem_usage_mb: float
+    mem_max_mb: float
+    requests_total: int
+    requests_new: int
+    request_errors_total: int
+    request_errors_new: int
+    latency_90p_ms: float
+    requests_per_s: float
 
 
 def test_image(image):
@@ -22,15 +41,16 @@ def test_image(image):
         print(f"Container started, to tail its logs: docker logs -f -t {container.id}")
         start = perf_counter()
         wait_for_container_ready(session)
-        start_duration = perf_counter() - start
-        print(f"Service has started responding in {start_duration}s.")
+        log_check("Startup time (to start responding) secs", perf_counter() - start)
+        collect_stats(container, "After startup")
 
         check(logs_on_startup, container)
         check(logs_each_request, container, session)
         perform_http_checks(session)
+        collect_stats(container, "After HTTP checks")
 
-        with collect_stats(container):
-            pass  # TODO: run stress tests
+        for connection_count in (1, 2, 5, 10, 20, 50, 100, 200, 500):
+            run_benchmark(container, connection_count)
 
 
 @contextmanager
@@ -55,9 +75,12 @@ def run_container(dockerc: docker.DockerClient, image):
 def wait_for_container_ready(session):
     timeout = 15
     last_exc = None
+    global TOTAL_REQUESTS
     for _ in range(timeout * 100):  # We wait one hundredth of a second.
         try:
-            return session.get(URL_PREFIX)
+            session.get(URL_PREFIX)
+            TOTAL_REQUESTS += 1
+            return
         except requests.exceptions.ConnectionError as e:
             last_exc = e
             sleep(0.01)
@@ -69,10 +92,19 @@ def check(func, *args):
     print(f"{func.__doc__}: ", end="")
     try:
         func(*args)
-        print("Good")
     except AssertionError as e:
+        value = "Bad"
         failed_line = traceback.extract_tb(sys.exc_info()[2])[-1].line  # magic to extract the "assert line"
         print(f"Bad: {failed_line}: {e}")
+    else:
+        value = "Good"
+        print(value)
+    log_check(func.__doc__, value, verbose=False)  # we have already printed
+
+
+def log_check(message, value, verbose=True):
+    if verbose:
+        print(f'{message}: {value}')
 
 
 def logs_on_startup(container):
@@ -85,6 +117,8 @@ def logs_each_request(container, session):
     """Service logs every request, message contains url path"""
     path = "/blablaGOGOthisIsCanaryValue"
     session.get(URL_PREFIX + path)
+    global TOTAL_REQUESTS
+    TOTAL_REQUESTS += 1
     out = container.logs().decode()
     assert path in out, f"got {len(out.splitlines())} lines of log: \n{out}"
 
@@ -95,8 +129,10 @@ def test_local():
 
 
 def perform_http_checks(session):
+    global TOTAL_REQUESTS
     for func in HTTP_CHECK_FUNCS:
         check(func, session)
+        TOTAL_REQUESTS += 1
 
 
 def http_check(func):
@@ -194,28 +230,103 @@ def assert_city_reply(res: requests.Response, expected_id, expected_city, expect
     assert json['regionName'] == expected_region, (expected_region, json)
 
 
-@contextmanager
-def collect_stats(container):
-    thread_executor = ThreadPoolExecutor(max_workers=1)
-    event = Event()
-    collect_stats_future = thread_executor.submit(collect_stats_thread, container, event)
+def collect_stats(container, message, latency_90p_ms = None, requests_per_s = None):
+    docker_stats = container.stats(stream=False)
+    stats = Stats(
+        message,
+        cpu_total_s=docker_stats['cpu_stats']['cpu_usage']['total_usage'] / 1000**3,  # docker stats are in nanosecs
+        cpu_new_s=None,
+        mem_usage_mb=docker_stats['memory_stats']['usage'] / 1024**2,
+        mem_max_mb=docker_stats['memory_stats']['max_usage'] / 1024**2,
+        requests_total=TOTAL_REQUESTS,
+        requests_new=None,
+        request_errors_total=TOTAL_REQUEST_ERRORS,
+        request_errors_new=None,
+        latency_90p_ms=latency_90p_ms,
+        requests_per_s=requests_per_s,
+    )
+    if STATS:
+        prev_stats: Stats = STATS[-1]
+        stats.cpu_new_s = stats.cpu_total_s - prev_stats.cpu_total_s
+        stats.requests_new = stats.requests_total - prev_stats.requests_total
+        stats.request_errors_new = stats.request_errors_total - prev_stats.request_errors_total
+    print(stats)
+    STATS.append(stats)
+
+
+def run_benchmark(container, connection_count):
+    threads = min(connection_count, 4)  # count with 4 physical cores; wrk requires connections >= threads
+    duration_s = 10
+    process = run(['wrk', f'-c{connection_count}', f'-t{threads}', f'-d{duration_s}', '--latency',
+                   f'{URL_PREFIX}/city/v1/get?id=101748111&language=cs'], check=True, capture_output=True, text=True)
+    lines = process.stdout.splitlines()
+
+    # Running 10s test @ http://127.0.0.1:8080/city/v1/get?id=101748111&language=cs
+    #   1 threads and 50 connections
+    #   Thread Stats   Avg      Stdev     Max   +/- Stdev
+    #     Latency   142.80ms   31.56ms 302.00ms   76.92%
+    #     Req/Sec   349.72     81.58   494.00     74.00%
+    #   Latency Distribution
+    #     50%  136.22ms
+    #     75%  155.05ms
+    #     90%  182.81ms
+    #     99%  269.44ms
+    #   3485 requests in 10.01s, 772.55KB read
+    #   Non-2xx or 3xx responses: 25
+    #   Socket errors: connect 3980, read 0, write 0, timeout 0
+    # Requests/sec:    348.13
+    # Transfer/sec:     77.17KB
+
+    def match_line(pattern):
+        for line in lines:
+            m = re.fullmatch(pattern, line)
+            if m:
+                return m
+        else:
+            raise ValueError(f'Pattern "{pattern}" not found in lines:' + ''.join(f'\n"{l}"' for l in lines))
+
+    matches = match_line(' +90% +([0-9.]+)(m?)s *')
+    latency_90p_ms = float(matches.group(1))
+    if matches.group(2) == '':
+        latency_90p_ms *= 1000  # if the value is in seconds, multiply to get msecs
+
+    requests_new = int(match_line(' +([0-9]+) requests in .* read').group(1))
+    errors_new = 0
 
     try:
-        yield
-    finally:
-        event.set()
-        assert collect_stats_future.result(2) is None  # catch possible exception from the thread
+        matches = match_line(' +Non-2xx or 3xx responses: ([0-9]+) *')
+    except ValueError:
+        pass  # the line is not printed when there are no such errors
+    else:
+        errors_new += int(matches.group(1))
+
+    try:
+        matches = match_line(' +Socket errors: connect ([0-9]+), read ([0-9]+), write ([0-9]+), timeout ([0-9]+) *')
+    except ValueError:
+        pass  # the line is not printed when there are no such errors
+    else:
+        errors_new += sum(int(g) for g in matches.groups())
+
+    global TOTAL_REQUESTS
+    global TOTAL_REQUEST_ERRORS
+    requests_new -= errors_new  # wrk reports errors into all requests, subtract because we want just OK ones.
+    TOTAL_REQUESTS += requests_new
+    TOTAL_REQUEST_ERRORS += errors_new
+
+    requests_per_s = requests_new / duration_s
+    collect_stats(container, f'Bench {connection_count} connections', latency_90p_ms, requests_per_s)
 
 
-def collect_stats_thread(container, event: Event):
-    for stats in container.stats(decode=True):
-        # TODO: parse "read" date
-        cpu_total_ms = stats['cpu_stats']['cpu_usage']['total_usage'] / 1000**2
-        mem_usage_mb = stats['memory_stats']['usage'] / 1024**2
-        mem_max_usage_mb = stats['memory_stats']['max_usage'] / 1024**2
-        print(f'cpu_total_ms: {cpu_total_ms} mem_usage_mb: {mem_usage_mb} mem_max_usage_mb: {mem_max_usage_mb}')
-        if event.is_set():
-            break
+def run(program_args, **kwargs):
+    print(f"$ {' '.join(program_args)}")
+    try:
+        return subprocess.run(program_args, **kwargs)
+    except subprocess.CalledProcessError as e:
+        if e.stdout:
+            print(f"stdout: {e.stdout}")
+        if e.stderr:
+            print(f"stderr: {e.stderr}")
+        raise
 
 
 if __name__ == '__main__':
