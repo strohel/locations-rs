@@ -44,6 +44,8 @@ def test_image(image):
         log_check("Startup time (to start responding) secs", perf_counter() - start)
         collect_stats(container, "After startup")
 
+        log_check("Docker image size (MB)", container.image.attrs['Size'] / 1024**2)
+
         check(logs_on_startup, container)
         check(logs_each_request, container, session)
         perform_http_checks(session)
