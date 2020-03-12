@@ -192,7 +192,7 @@ def http_check_nonexistent_city_id(session: requests.Session):
 
 def assert_error_reply(res: requests.Response, expected_code):
     assert res.status_code == expected_code, (expected_code, res, res.text)
-    assert res.headers['content-type'] == 'application/json', res.headers
+    assert res.headers['content-type'].startswith('application/json'), res.headers
     json = res.json()
     assert 'message' in json, json
 
@@ -220,7 +220,7 @@ def http_check_graz_cs_extra_param(session: requests.Session):
 
 def assert_city_reply(res: requests.Response, expected_id, expected_city, expected_region, expected_country):
     assert res.status_code == 200, (res, res.text)
-    assert res.headers['content-type'] == 'application/json', res.headers
+    assert res.headers['content-type'].startswith('application/json'), res.headers
     json = res.json()
     assert json.keys() == {'countryISO', 'id', 'isFeatured', 'name', 'regionName'}, json
     assert json['countryISO'] == expected_country, (expected_country, json)
