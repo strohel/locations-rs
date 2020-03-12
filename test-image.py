@@ -31,6 +31,7 @@ class Stats:
     requests_new: int
     request_errors_total: int
     request_errors_new: int
+    connections: int
     latency_90p_ms: float
     requests_per_s: float
 
@@ -232,7 +233,7 @@ def assert_city_reply(res: requests.Response, expected_id, expected_city, expect
     assert json['regionName'] == expected_region, (expected_region, json)
 
 
-def collect_stats(container, message, latency_90p_ms = None, requests_per_s = None):
+def collect_stats(container, message, connections=None, latency_90p_ms=None, requests_per_s=None):
     docker_stats = container.stats(stream=False)
     stats = Stats(
         message,
@@ -244,6 +245,7 @@ def collect_stats(container, message, latency_90p_ms = None, requests_per_s = No
         requests_new=None,
         request_errors_total=TOTAL_REQUEST_ERRORS,
         request_errors_new=None,
+        connections=connections,
         latency_90p_ms=latency_90p_ms,
         requests_per_s=requests_per_s,
     )
@@ -316,7 +318,7 @@ def run_benchmark(container, connection_count):
     TOTAL_REQUEST_ERRORS += errors_new
 
     requests_per_s = requests_new / duration_s
-    collect_stats(container, f'Bench {connection_count} connections', latency_90p_ms, requests_per_s)
+    collect_stats(container, 'Bench', connection_count, latency_90p_ms, requests_per_s)
 
 
 def run(program_args, **kwargs):
