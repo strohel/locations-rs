@@ -38,6 +38,11 @@ class Stats:
 
 def test_image(image):
     dockerc = docker.from_env()
+
+    check_doesnt_start_with_env(dockerc, image, 'Does not start without env variables', {})
+    check_doesnt_start_with_env(dockerc, image, 'Does not start with invalid ES address',
+                                {'GOOUT_ELASTIC_HOST': '127.0.0.1', 'GOOUT_ELASTIC_PORT': '56789'})
+
     with run_container(dockerc, image) as container, requests.Session() as session:
         print(f"Container started, to tail its logs: docker logs -f -t {container.id}")
         start = perf_counter()
@@ -54,6 +59,27 @@ def test_image(image):
 
         for connection_count in (1, 2, 5, 10, 20, 50, 100, 200, 500):
             run_benchmark(container, connection_count)
+
+
+def check_doesnt_start_with_env(dockerc: docker.DockerClient, image, message, env):
+    print(f'{message}: ', end='', flush=True)
+    container = dockerc.containers.run(image, auto_remove=True, environment=env, detach=True)
+    start = perf_counter()
+    timeout = 15
+    try:
+        container.wait(timeout=timeout)
+        value = f"Good, exited in {(perf_counter() - start):.1f}s"
+    except Exception as e:
+        value = f"Bad, did not exit in {timeout}s, logs: {container.logs().decode()}"
+        container.kill()
+
+    print(value)
+    log_check(message, value, verbose=False)
+
+
+def log_check(message, value, verbose=True):
+    if verbose:
+        print(f'{message}: {value}')
 
 
 @contextmanager
@@ -92,7 +118,7 @@ def wait_for_container_ready(session):
 
 def check(func, *args):
     """Perform a single check and print its result."""
-    print(f"{func.__doc__}: ", end="")
+    print(f"{func.__doc__}: ", end='', flush=True)
     try:
         func(*args)
     except AssertionError as e:
@@ -103,11 +129,6 @@ def check(func, *args):
         value = "Good"
         print(value)
     log_check(func.__doc__, value, verbose=False)  # we have already printed
-
-
-def log_check(message, value, verbose=True):
-    if verbose:
-        print(f'{message}: {value}')
 
 
 def logs_on_startup(container):
