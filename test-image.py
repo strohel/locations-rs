@@ -4,7 +4,7 @@
 GoOut Locations MVP Docker image tester and benchmark.
 
 Usage:
-  test-image.py <docker-image>
+  test-image.py <docker-image> [--no-bench]
   test-image.py --local
 """
 
@@ -48,7 +48,7 @@ class Stats:
     requests_per_s: float
 
 
-def test_image(image):
+def test_image(image: str, bench: bool):
     dockerc = docker.from_env()
 
     check_doesnt_start_with_env(dockerc, image, 'Does not start without env variables', {})
@@ -69,7 +69,8 @@ def test_image(image):
         perform_http_checks(session)
         collect_stats(container, "After HTTP checks")
 
-        for connection_count in (1, 2, 5, 10, 20, 50, 100, 200, 500):
+        connection_range = (1, 2, 5, 10, 20, 50, 100, 200, 500) if bench else ()
+        for connection_count in connection_range:
             run_benchmark(container, connection_count)
 
 
@@ -371,4 +372,4 @@ if __name__ == '__main__':
     if args['--local']:
         test_local()
     else:
-        test_image(args['<docker-image>'])
+        test_image(args['<docker-image>'], bench=not args['--no-bench'])
