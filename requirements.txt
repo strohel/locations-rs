@@ -1,0 +1,4 @@
+# This file lists dependencies of the test-image.py command. Install them with e.g. `pip install -r requirements.txt`
+docker
+docopt
+requests

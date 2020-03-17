@@ -17,9 +17,12 @@ import sys
 from time import sleep, perf_counter
 import traceback
 
-import docker
-from docopt import docopt
-import requests
+try:
+    import docker
+    from docopt import docopt
+    import requests
+except ImportError as e:
+    raise Exception('Some external dependencies not found, install them using: pip install -r requirements.txt') from e
 
 
 URL_PREFIX = "http://127.0.0.1:8080"
