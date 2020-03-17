@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
 
+"""
+GoOut Locations MVP Docker image tester and benchmark.
+
+Usage:
+  test-image.py <docker-image>
+  test-image.py --local
+"""
+
 from contextlib import contextmanager
 from dataclasses import dataclass
 import os
@@ -10,6 +18,7 @@ from time import sleep, perf_counter
 import traceback
 
 import docker
+from docopt import docopt
 import requests
 
 
@@ -355,11 +364,8 @@ def run(program_args, **kwargs):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        print(f"Usage: {sys.argv[0]} (docker-image/with-optional:tag | --local)")
-        exit(1)
-    arg = sys.argv[1]
-    if arg == '--local':
+    args = docopt(__doc__)
+    if args['--local']:
         test_local()
     else:
-        test_image(arg)
+        test_image(args['<docker-image>'])
