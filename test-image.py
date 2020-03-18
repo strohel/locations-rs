@@ -9,7 +9,8 @@ Usage:
 """
 
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+import json
 import os
 import re
 import subprocess
@@ -30,6 +31,7 @@ HTTP_CHECK_FUNCS = []
 TOTAL_REQUESTS = 0
 TOTAL_REQUEST_ERRORS = 0
 STATS = []
+CHECKS = []
 
 
 @dataclass
@@ -46,6 +48,12 @@ class Stats:
     connections: int
     latency_90p_ms: float
     requests_per_s: float
+
+
+@dataclass
+class Check:
+    message: str
+    value: str
 
 
 def test_image(image: str, bench: bool):
@@ -73,6 +81,9 @@ def test_image(image: str, bench: bool):
         for connection_count in connection_range:
             run_benchmark(container, connection_count)
 
+    sane_name = re.sub('[^a-z0-9]+', '-', image)
+    save_results(f'{sane_name}.checks{".bench" if bench else ""}.json')
+
 
 def check_doesnt_start_with_env(dockerc: docker.DockerClient, image, message, env):
     print(f'{message}: ', end='', flush=True)
@@ -82,15 +93,17 @@ def check_doesnt_start_with_env(dockerc: docker.DockerClient, image, message, en
     try:
         container.wait(timeout=timeout)
         value = f"Good, exited in {(perf_counter() - start):.1f}s"
+        print(value)
     except Exception as e:
-        value = f"Bad, did not exit in {timeout}s, logs: {container.logs().decode()}"
+        value = f"Bad, did not exit in {timeout}s"
+        print(f'{value}, logs: {container.logs().decode()}')
         container.kill()
 
-    print(value)
     log_check(message, value, verbose=False)
 
 
 def log_check(message, value, verbose=True):
+    CHECKS.append(Check(message, value))
     if verbose:
         print(f'{message}: {value}')
 
@@ -365,6 +378,13 @@ def run(program_args, **kwargs):
         if e.stderr:
             print(f"stderr: {e.stderr}")
         raise
+
+
+def save_results(filename):
+    payload = {'checks': [asdict(c) for c in CHECKS], 'stats': [asdict(s) for s in STATS]}
+    with open(filename, 'w') as f:
+        json.dump(payload, f)
+    print(f'Results dumped to {filename}.')
 
 
 if __name__ == '__main__':
