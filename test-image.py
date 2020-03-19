@@ -31,7 +31,7 @@ HTTP_CHECK_FUNCS = []
 TOTAL_REQUESTS = 0
 TOTAL_REQUEST_ERRORS = 0
 STATS = []
-CHECKS = []
+CHECKS = {}
 
 
 @dataclass
@@ -48,12 +48,6 @@ class Stats:
     connections: int
     latency_90p_ms: float
     requests_per_s: float
-
-
-@dataclass
-class Check:
-    message: str
-    value: str
 
 
 def test_image(image: str, bench: bool):
@@ -103,9 +97,10 @@ def check_doesnt_start_with_env(dockerc: docker.DockerClient, image, message, en
 
 
 def log_check(message, value, verbose=True):
-    CHECKS.append(Check(message, value))
     if verbose:
         print(f'{message}: {value}')
+    assert message not in CHECKS
+    CHECKS[message] = value
 
 
 @contextmanager
@@ -381,7 +376,7 @@ def run(program_args, **kwargs):
 
 
 def save_results(filename):
-    payload = {'checks': [asdict(c) for c in CHECKS], 'stats': [asdict(s) for s in STATS]}
+    payload = {'checks': CHECKS, 'stats': [asdict(s) for s in STATS]}
     with open(filename, 'w') as f:
         json.dump(payload, f)
     print(f'Results dumped to {filename}.')
