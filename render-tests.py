@@ -10,7 +10,7 @@ Currently processes all *.checks.bench.json files in the current dir.
 """
 
 import json
-from glob import glob
+from pathlib import Path
 
 try:
     from docopt import docopt
@@ -21,13 +21,13 @@ except ImportError as e:
 def render():
     suffix = '.checks.bench.json'
     suites = {}
-    for filename in glob(f'*{suffix}'):
-        name = filename[:-len(suffix)]
-        print(f'Loading {filename} as {name}.')
-        with open(filename) as fp:
+    for filepath in Path('.').glob(f'*{suffix}'):
+        name = filepath.name[:-len(suffix)]
+        print(f'Loading {filepath} as {name}.')
+        with open(filepath) as fp:
             suites[name] = json.load(fp)
 
-    out_filename = 'bench-results.md'
+    out_filename = Path('bench-results.md')
     with open(out_filename, 'w') as out:
         render_checks(suites, out)
     print(f'Markdown output written to {out_filename}.')
