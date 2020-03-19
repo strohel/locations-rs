@@ -14,6 +14,7 @@ from pathlib import Path
 
 try:
     from docopt import docopt
+    from marko.ext.gfm import gfm
 except ImportError as e:
     raise Exception('Some external dependencies not found, install them using: pip install -r requirements.txt') from e
 
@@ -32,6 +33,8 @@ def render():
         render_checks(suites, out)
     print(f'Markdown output written to {out_filename}.')
 
+    render_html(out_filename, Path('bench-results.html'))
+
 
 def render_checks(suites, out):
     names = sorted(suites.keys())
@@ -45,6 +48,14 @@ def render_checks(suites, out):
     for check_name in check_names:
         values = [str(per_impl_checks[name][check_name]) for name in names]
         print(f'|{check_name}|{"|".join(values)}|', file=out)
+
+
+def render_html(md_file, html_file):
+    with open(md_file) as in_fp, open(html_file, 'w') as out_fp:
+        rs = in_fp.read()
+        html = gfm(rs)
+        out_fp.write(html)
+    print(f'HTML output written to {html_file.resolve().as_uri()}.')
 
 
 if __name__ == '__main__':
