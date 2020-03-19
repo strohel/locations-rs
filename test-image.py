@@ -303,7 +303,7 @@ def collect_stats(container, message, connections=None, latency_90p_ms=None, req
 def run_benchmark(container, connection_count):
     threads = min(connection_count, 4)  # count with 4 physical cores; wrk requires connections >= threads
     duration_s = 10
-    process = run(['wrk', f'-c{connection_count}', f'-t{threads}', f'-d{duration_s}', '--latency',
+    process = run(['wrk', f'-c{connection_count}', f'-t{threads}', f'-d{duration_s}', '--latency', '--timeout=15',
                    f'{URL_PREFIX}/city/v1/get?id=101748111&language=cs'], check=True, capture_output=True, text=True)
     lines = process.stdout.splitlines()
 
@@ -351,6 +351,7 @@ def run_benchmark(container, connection_count):
     except ValueError:
         pass  # the line is not printed when there are no such errors
     else:
+        assert matches[4] == 0, ('Timeout errors can be included in Non-2/3xx, prevent double-count.', process.stdout)
         errors_new += sum(int(g) for g in matches.groups())
 
     global TOTAL_REQUESTS
