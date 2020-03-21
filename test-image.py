@@ -8,6 +8,7 @@ Usage:
   test-image.py --local
 """
 
+from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 import json
@@ -69,7 +70,9 @@ def test_image(image: str, bench: bool):
         check(logs_on_startup, container)
         check(logs_each_request, container, session)
         perform_http_checks(session)
+
         collect_stats(container, "After HTTP checks")
+        log_threads(container)
 
         connection_range = (1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048) if bench else ()
         for connection_count in connection_range:
@@ -302,6 +305,15 @@ def collect_stats(container, message, connections=None, latency_90p_ms=None, req
         stats.request_errors_new = stats.request_errors_total - prev_stats.request_errors_total
     print(stats)
     STATS.append(stats)
+
+
+def log_threads(container):
+    out = container.top(ps_args='-L -o pid,comm')
+    threads = defaultdict(lambda: defaultdict(int))
+    for pid, thread_cmd in out['Processes']:
+        threads[pid][thread_cmd] += 1
+    processes = [', '.join((f'{n}✕' if n > 1 else '') + cmd for cmd, n in cnt.items()) for cnt in threads.values()]
+    log_check('Threads after HTTP checks','<br>'.join(processes))
 
 
 def run_benchmark(container, connection_count):
