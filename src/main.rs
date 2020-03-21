@@ -40,7 +40,7 @@ async fn main() -> io::Result<()> {
     if env::var(DEFAULT_FILTER_ENV).is_err() {
         env::set_var(DEFAULT_FILTER_ENV, "info");
     }
-    pretty_env_logger::init();
+    pretty_env_logger::init_timed();
 
     let mut app = tide::with_state(AppState::new().await);
     app.middleware(tide::middleware::RequestLogger::new());
