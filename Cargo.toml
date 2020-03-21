@@ -19,3 +19,7 @@ thiserror = "1.0"
 
 [patch.crates-io]
 num_cpus = { git = "https://github.com/seanmonstar/num_cpus.git", branch = "containerized" }
+
+[profile.release]
+lto = "fat"
+codegen-units = 1

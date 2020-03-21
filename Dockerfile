@@ -7,7 +7,7 @@ RUN rustc --version
 COPY ./ ./
 
 # Compile in release mode and put the binary into /install/.
-RUN cargo install --path . --root /install
+RUN RUSTFLAGS="-C target-cpu=native" cargo install --path . --root /install
 
 # Production image. Shrinking possibility: https://alexbrand.dev/post/how-to-package-rust-applications-into-minimal-docker-containers/
 FROM bitnami/minideb:buster
