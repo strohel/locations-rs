@@ -71,7 +71,7 @@ def test_image(image: str, bench: bool):
         perform_http_checks(session)
         collect_stats(container, "After HTTP checks")
 
-        connection_range = (1, 2, 5, 10, 20, 50, 100, 200, 500) if bench else ()
+        connection_range = (1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048) if bench else ()
         for connection_count in connection_range:
             run_benchmark(container, connection_count)
 
