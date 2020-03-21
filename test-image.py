@@ -119,7 +119,11 @@ def run_container(dockerc: docker.DockerClient, image):
     try:
         yield container
     finally:
-        container.kill()
+        timeout = 15
+        start = perf_counter()
+        container.stop(timeout=timeout)
+        dur = perf_counter() - start
+        log_check('Stops gracefully', f'Good, in {dur:.1f}s' if dur < timeout else f'Bad, did not stop in {dur:.1f}s')
 
 
 def wait_for_container_ready(session):
