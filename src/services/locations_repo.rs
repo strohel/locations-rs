@@ -59,11 +59,12 @@ impl<S: WithElasticsearch> LocationsElasticRepository<'_, S> {
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
 pub(crate) struct ElasticCity {
-    pub(crate) centroid: [f64; 2],
+    centroid: IgnoredAny, // Some cities have a 2-element array, some have a map, ignore for now.
     pub(crate) countryISO: String,
     geometry: IgnoredAny, // Consume the key so that it doesn't appear in `names`, but don't parse.
     pub(crate) id: u64,
     pub(crate) regionId: u64,
+    pub(crate) timezone: String,
 
     #[serde(flatten)] // captures rest of fields, see https://serde.rs/attr-flatten.html
     pub(crate) names: HashMap<String, String>,
@@ -73,7 +74,7 @@ pub(crate) struct ElasticCity {
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
 pub(crate) struct ElasticRegion {
-    pub(crate) centroid: [f64; 2],
+    centroid: IgnoredAny,
     pub(crate) countryISO: String,
     geometry: IgnoredAny, // Consume the key so that it doesn't appear in `names`, but don't parse.
     pub(crate) id: u64,
