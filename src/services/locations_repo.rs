@@ -64,7 +64,6 @@ pub(crate) struct ElasticCity {
     geometry: IgnoredAny, // Consume the key so that it doesn't appear in `names`, but don't parse.
     pub(crate) id: u64,
     pub(crate) regionId: u64,
-    pub(crate) timezone: String,
 
     #[serde(flatten)] // captures rest of fields, see https://serde.rs/attr-flatten.html
     pub(crate) names: HashMap<String, String>,
