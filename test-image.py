@@ -355,7 +355,7 @@ def run_benchmark(container, connection_count):
     except ValueError:
         pass  # the line is not printed when there are no such errors
     else:
-        assert matches[4] == 0, ('Timeout errors can be included in Non-2/3xx, prevent double-count.', process.stdout)
+        assert int(matches[4]) == 0, ('Timeout errors can be included in Non-2/3xx, prevent double-count.', process.stdout)
         errors_new += sum(int(g) for g in matches.groups())
 
     global TOTAL_REQUESTS
