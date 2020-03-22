@@ -58,7 +58,25 @@ def test_image(image: str, bench: bool):
     check_doesnt_start_with_env(dockerc, image, 'Does not start with invalid ES address',
                                 {'GOOUT_ELASTIC_HOST': '127.0.0.1', 'GOOUT_ELASTIC_PORT': '56789'})
 
-    with run_container(dockerc, image) as container, requests.Session() as session:
+    session = requests.Session()
+
+    # 512 MB should be a conservative limit of something called a microservice.
+    mem_limit = "512m"
+    run_opts = dict(
+        image=image,
+        auto_remove=True,
+        detach=True,
+        ports={8080: 8080},
+        mem_limit=mem_limit,
+        memswap_limit=mem_limit,  # Set to the same value as mem_limit to disable swap.
+        environment={key: os.environ[key] for key in ('GOOUT_ELASTIC_HOST', 'GOOUT_ELASTIC_PORT')},
+    )
+
+    log_threads(dockerc, session, run_opts, "4 online vCPUs, 4.0 soft CPU limit", cpuset_cpus="0-3", soft_cpus=4.0)
+    log_threads(dockerc, session, run_opts, "4 online vCPUs, 1.0 soft CPU limit", cpuset_cpus="0-3", soft_cpus=1.0)
+    log_threads(dockerc, session, run_opts, "1 online vCPU,  1.0 soft CPU limit", cpuset_cpus="0", soft_cpus=1.0)
+
+    with run_container(dockerc, run_opts) as container:
         print(f"Container started, to tail its logs: docker logs -f -t {container.id}")
         start = perf_counter()
         wait_for_container_ready(session)
@@ -72,7 +90,6 @@ def test_image(image: str, bench: bool):
         perform_http_checks(session)
 
         collect_stats(container, "After HTTP checks")
-        log_threads(container)
 
         connection_range = (1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048) if bench else ()
         for connection_count in connection_range:
@@ -106,19 +123,30 @@ def log_check(message, value, verbose=True):
     CHECKS[message] = value
 
 
+def log_threads(dockerc, session, run_opts, message, cpuset_cpus, soft_cpus):
+    container = dockerc.containers.run(cpuset_cpus=cpuset_cpus, nano_cpus=int(soft_cpus * 10**9), **run_opts)
+    try:
+        wait_for_container_ready(session)
+        out = container.top(ps_args='-L -o pid,comm')
+
+        threads = defaultdict(lambda: defaultdict(int))
+        for pid, thread_cmd in out['Processes']:
+            threads[pid][thread_cmd] += 1
+        processes = [', '.join((f'{n}✕' if n > 1 else '') + cmd for cmd, n in cnt.items()) for cnt in threads.values()]
+
+        log_check(f'Threads with {message}','<br>'.join(processes))
+    finally:
+        container.kill()
+
+
 @contextmanager
-def run_container(dockerc: docker.DockerClient, image):
+def run_container(dockerc: docker.DockerClient, run_opts):
     # Give only 1s of CPU-core-time per each wall clock second. (can still run in parallel). Lets the rest of the
     # system breathe and better simulates Kubernetes environment (which uses the same method of capping CPU).
     nano_cpus = 10**9
-    # 512 MB should be a conservative limit of something called a microservice. Setting swap to same value to disable.
-    mem_limit = "512m"
-    environment = {key: os.environ[key] for key in ('GOOUT_ELASTIC_HOST', 'GOOUT_ELASTIC_PORT')}
     cpuset_cpus = "0-3"  # Assign 4 logical CPUs to the container to simulate our real cluster.
 
-    container = dockerc.containers.run(
-        image, auto_remove=True, detach=True, nano_cpus=nano_cpus, mem_limit=mem_limit, memswap_limit=mem_limit,
-        ports={8080: 8080}, environment=environment, cpuset_cpus=cpuset_cpus)
+    container = dockerc.containers.run(cpuset_cpus=cpuset_cpus, nano_cpus=nano_cpus, **run_opts)
     try:
         yield container
     finally:
@@ -305,15 +333,6 @@ def collect_stats(container, message, connections=None, latency_90p_ms=None, req
         stats.request_errors_new = stats.request_errors_total - prev_stats.request_errors_total
     print(stats)
     STATS.append(stats)
-
-
-def log_threads(container):
-    out = container.top(ps_args='-L -o pid,comm')
-    threads = defaultdict(lambda: defaultdict(int))
-    for pid, thread_cmd in out['Processes']:
-        threads[pid][thread_cmd] += 1
-    processes = [', '.join((f'{n}✕' if n > 1 else '') + cmd for cmd, n in cnt.items()) for cnt in threads.values()]
-    log_check('Threads after HTTP checks','<br>'.join(processes))
 
 
 def run_benchmark(container, connection_count):
