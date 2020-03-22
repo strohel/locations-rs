@@ -340,7 +340,7 @@ checksum = "bb1f6b1ce1c140482ea30ddd3335fc0024ac7ee112895426e0a629a6c20adfe3"
 [[package]]
 name = "elasticsearch"
 version = "7.6.0-alpha.1"
-source = "git+https://github.com/strohel/elasticsearch-rs.git?branch=port-from-reqwest-to-surf#8b2f7e60be5763ba752efaf030282fb6f08f18b6"
+source = "git+https://github.com/strohel/elasticsearch-rs.git?branch=port-from-reqwest-to-surf#30212075174302d19ee13f8f9e5bd17b083751b0"
 dependencies = [
  "base64",
  "bytes 0.5.4",
@@ -655,8 +655,7 @@ dependencies = [
 [[package]]
 name = "http-client"
 version = "1.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf86227a76b64ebd37d442853370f7177be4fd3ae6f9ff5c9e0349643e1cb332"
+source = "git+https://github.com/http-rs/http-client.git?rev=cc5ee280bd65e1522ff15b19e1575c0530e0e695#cc5ee280bd65e1522ff15b19e1575c0530e0e695"
 dependencies = [
  "futures 0.3.4",
  "http 0.1.21",
@@ -1227,14 +1226,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro-hack"
-version = "0.5.12"
+version = "0.5.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f918f2b601f93baa836c1c2945faef682ba5b6d4828ecb45eeb7cc3c71b811b4"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
+checksum = "fcfdefadc3d57ca21cf17990a28ef4c0f7c61383a28cb7604cf4a18e6ede1420"
 
 [[package]]
 name = "proc-macro-nested"
@@ -1589,15 +1583,13 @@ dependencies = [
 
 [[package]]
 name = "surf"
-version = "1.0.3"
-source = "git+https://github.com/http-rs/surf.git?rev=8368e88f#8368e88f6545e950b06e36e874c098f800a2ca47"
+version = "2.0.0-alpha.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1640fa223ab85a28abd533ad229cc840336acb1d65a5e3f8d86daa9d8f930061"
 dependencies = [
- "encoding_rs",
  "futures 0.3.4",
  "http 0.1.21",
  "http-client",
- "isahc",
- "js-sys",
  "log",
  "mime",
  "mime_guess",
@@ -1605,9 +1597,6 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "url 2.1.1",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
 ]
 
 [[package]]

@@ -18,3 +18,5 @@ thiserror = "1.0"
 
 [patch.crates-io]
 tide = { git = "https://github.com/strohel/tide.git", branch = "intoresponse-for-result" }
+# Use newer master version, due to https://github.com/http-rs/surf/issues/143#issuecomment-602205453
+http-client = { git = "https://github.com/http-rs/http-client.git", rev = "cc5ee280bd65e1522ff15b19e1575c0530e0e695" }
