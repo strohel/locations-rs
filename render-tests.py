@@ -71,7 +71,7 @@ def render_checks(names, suites, out):
         return str(value)
 
     for check_name in check_names:
-        values = [sanitize(per_impl_checks[name][check_name]) for name in names]
+        values = [sanitize(per_impl_checks[name].get(check_name)) for name in names]
         if len(values) > 1 and len(set(values)) > 1:
             values = [f'**{value}**' for value in values]
         print(f'|{check_name}|{"|".join(values)}|', file=out)
