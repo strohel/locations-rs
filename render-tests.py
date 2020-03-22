@@ -43,6 +43,15 @@ def render():
     out_filename = Path('bench-results.md')
     with open(out_filename, 'w') as out:
         print(f'# Benchmark of {", ".join(names)}', file=out)
+
+        notes_file = Path('notes.md')
+        if notes_file.exists():
+            print(f'Including {notes_file} in resulting Markdown.')
+            with notes_file.open() as fp:
+                out.write(fp.read())
+        else:
+            print(f'File {notes_file} does not exist, create it to include it in resulting Markdown.')
+
         print('## General Info & Checks', file=out)
         render_checks(names, suites, out)
 
