@@ -88,7 +88,9 @@ def figure(func):
 
 def render_figures(names, suites):
     filenames = []
-    config = pygal.Config(legend_at_bottom=True, legend_at_bottom_columns=len(names))
+    config = pygal.Config(legend_at_bottom=True)
+    if len(names) <= 4:
+        config.legend_at_bottom_columns = len(names)
 
     for figure_func in FIGURE_FUNCS:
         chart = figure_func(names, suites, config)
