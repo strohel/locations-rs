@@ -73,8 +73,8 @@ def test_image(image: str, bench: bool):
     )
 
     log_threads(dockerc, session, run_opts, "4 online vCPUs, 4.0 soft CPU limit", cpuset_cpus="0-3", soft_cpus=4.0)
-    log_threads(dockerc, session, run_opts, "4 online vCPUs, 1.0 soft CPU limit", cpuset_cpus="0-3", soft_cpus=1.0)
-    log_threads(dockerc, session, run_opts, "1 online vCPU,  1.0 soft CPU limit", cpuset_cpus="0", soft_cpus=1.0)
+    log_threads(dockerc, session, run_opts, "4 online vCPUs, 1.0 soft CPU limit (benchmarked)", cpuset_cpus="0-3", soft_cpus=1.0)
+    log_threads(dockerc, session, run_opts, "1 online vCPU, 1.0 soft CPU limit", cpuset_cpus="0", soft_cpus=1.0)
 
     with run_container(dockerc, run_opts) as container:
         print(f"Container started, to tail its logs: docker logs -f -t {container.id}")
