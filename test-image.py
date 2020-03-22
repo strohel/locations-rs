@@ -367,10 +367,12 @@ def run_benchmark(container, connection_count):
         else:
             raise ValueError(f'Pattern "{pattern}" not found in lines:' + ''.join(f'\n"{l}"' for l in lines))
 
-    matches = match_line(' +90% +([0-9.]+)(m?)s *')
+    matches = match_line(' +90% +([0-9.]+)([mu]?)s *')
     latency_90p_ms = float(matches.group(1))
     if matches.group(2) == '':
         latency_90p_ms *= 1000  # if the value is in seconds, multiply to get msecs
+    if matches.group(2) == 'u':
+        latency_90p_ms /= 1000  # if the value is in microseconds, divide to get msecs
 
     requests_new = int(match_line(' +([0-9]+) requests in .* read').group(1))
 
