@@ -373,28 +373,27 @@ def run_benchmark(container, connection_count):
         latency_90p_ms *= 1000  # if the value is in seconds, multiply to get msecs
 
     requests_new = int(match_line(' +([0-9]+) requests in .* read').group(1))
-    errors_new = 0
 
     try:
         matches = match_line(' +Non-2xx or 3xx responses: ([0-9]+) *')
     except ValueError:
-        pass  # the line is not printed when there are no such errors
+        request_errors_new = 0  # the line is not printed when there are no such errors
     else:
-        errors_new += int(matches.group(1))
+        request_errors_new = int(matches.group(1))
 
     try:
         matches = match_line(' +Socket errors: connect ([0-9]+), read ([0-9]+), write ([0-9]+), timeout ([0-9]+) *')
     except ValueError:
-        pass  # the line is not printed when there are no such errors
+        other_errors_new = 0  # the line is not printed when there are no such errors
     else:
         assert int(matches[4]) == 0, ('Timeout errors can be included in Non-2/3xx, prevent double-count.', process.stdout)
-        errors_new += sum(int(g) for g in matches.groups())
+        other_errors_new = sum(int(g) for g in matches.groups())
 
     global TOTAL_REQUESTS
     global TOTAL_REQUEST_ERRORS
-    requests_new -= errors_new  # wrk reports errors into all requests, subtract because we want just OK ones.
+    requests_new -= request_errors_new  # wrk reports HTTP status errors into all requests, subtract because we want just OK ones.
     TOTAL_REQUESTS += requests_new
-    TOTAL_REQUEST_ERRORS += errors_new
+    TOTAL_REQUEST_ERRORS += request_errors_new + other_errors_new
 
     requests_per_s = requests_new / duration_s
     collect_stats(container, 'Bench', connection_count, latency_90p_ms, requests_per_s)
