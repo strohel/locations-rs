@@ -4,7 +4,7 @@
 GoOut Locations MVP Docker image tester and benchmark.
 
 Usage:
-  test-image.py <docker-image> [--no-bench]
+  test-image.py <docker-image> [--no-bench] [--log-threads]
   test-image.py --local
 """
 
@@ -51,7 +51,7 @@ class Stats:
     requests_per_s: float
 
 
-def test_image(image: str, bench: bool):
+def test_image(image: str, bench: bool, log_threads_enabled: bool):
     dockerc = docker.from_env()
 
     check_doesnt_start_with_env(dockerc, image, 'Does not start without env variables', {})
@@ -72,9 +72,10 @@ def test_image(image: str, bench: bool):
         environment={key: os.environ[key] for key in ('GOOUT_ELASTIC_HOST', 'GOOUT_ELASTIC_PORT')},
     )
 
-    log_threads(dockerc, session, run_opts, "4 online vCPUs, 4.0 soft CPU limit", cpuset_cpus="0-3", soft_cpus=4.0)
-    log_threads(dockerc, session, run_opts, "4 online vCPUs, 1.0 soft CPU limit (benchmarked)", cpuset_cpus="0-3", soft_cpus=1.0)
-    log_threads(dockerc, session, run_opts, "1 online vCPU, 1.0 soft CPU limit", cpuset_cpus="0", soft_cpus=1.0)
+    if log_threads_enabled:
+        log_threads(dockerc, session, run_opts, "4 online vCPUs, 4.0 soft CPU limit", cpuset_cpus="0-3", soft_cpus=4.0)
+        log_threads(dockerc, session, run_opts, "4 online vCPUs, 1.0 soft CPU limit (benchmarked)", cpuset_cpus="0-3", soft_cpus=1.0)
+        log_threads(dockerc, session, run_opts, "1 online vCPU, 1.0 soft CPU limit", cpuset_cpus="0", soft_cpus=1.0)
 
     with run_container(dockerc, run_opts) as container:
         print(f"Container started, to tail its logs: docker logs -f -t {container.id}")
@@ -423,4 +424,4 @@ if __name__ == '__main__':
     if args['--local']:
         test_local()
     else:
-        test_image(args['<docker-image>'], bench=not args['--no-bench'])
+        test_image(args['<docker-image>'], bench=not args['--no-bench'], log_threads_enabled=args['--log-threads'])
