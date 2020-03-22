@@ -166,7 +166,8 @@ def max_mem_usage_per_requests_figure(names, suites, config):
     chart.title = 'Max Memory Usage per Success Requests/s vs. Connections (MB-second/Req)'
     connections_x_labels(chart, suites, skip=2)
     for name in names:
-        chart.add(name, [s['mem_max_mb']/s['requests_per_s'] for s in suites[name]['stats'][2:]])
+        chart.add(name, [s['mem_max_mb']/s['requests_per_s'] if s['requests_per_s'] else None
+                         for s in suites[name]['stats'][2:]])
     return chart
 
 
@@ -186,7 +187,8 @@ def cpu_per_request_figure(names, suites, config):
     chart.title = 'CPU Time per Success Request vs. Connections (CPU-milliseconds/Req)'
     connections_x_labels(chart, suites, skip=2)
     for name in names:
-        chart.add(name, [1000*s['cpu_new_s']/s['requests_new'] for s in suites[name]['stats'][2:]])
+        chart.add(name, [1000*s['cpu_new_s']/s['requests_new'] if s['requests_new'] else None
+                         for s in suites[name]['stats'][2:]])
     return chart
 
 
