@@ -47,9 +47,10 @@ def render():
         render_checks(names, suites, out)
 
         print('## Graphs', file=out)
+        print('*The graphs are interactive, view the rendered HTML locally to enjoy it.*\n', file=out)
         for filename in figure_filenames:
             # Use HTML instead of Markdown image to specify the width
-            print(f'<img src="{filename}" alt="{filename}" width="49%"/>', file=out)
+            print(f'<img type="image/svg+xml" src="{filename}" alt="{filename}" width="49%"/>', file=out)
 
     print(f'Markdown output written to {out_filename}.')
 
@@ -200,6 +201,8 @@ def render_html(md_file, html_file):
     with open(md_file) as in_fp, open(html_file, 'w') as out_fp:
         rs = in_fp.read()
         html = gfm(rs)
+        # Replace <img> by <embed> for pygal interactivity, http://www.pygal.org/en/latest/documentation/web.html
+        html = html.replace('<img', '<embed')
         out_fp.write(html)
     print(f'HTML output written to {html_file.resolve().as_uri()}.')
 
