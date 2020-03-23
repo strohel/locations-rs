@@ -195,12 +195,14 @@ def cpu_per_request_figure(names, suites, config):
 @figure
 def cpu_vs_requests_figure(names, suites, config):
     chart = pygal.XY(config)
-    chart.title = 'Cumulative CPU Usage vs. Cumulative Requests'
-    chart.x_title = 'cumulative requests'
-    chart.y_title = 'CPU-seconds'
+    chart.title = 'Cumulative Success Requests vs. Cumulative CPU Seconds'
+    chart.x_title = 'CPU-seconds'
+    chart.y_title = 'cumulative success requests'
     for name in names:
-        chart.add(name, [(s['requests_total'], s['cpu_total_s']) if s['request_errors_total'] == 0 else None
-                         for s in suites[name]['stats']])
+        chart.add(name, [
+            {'value': (s['cpu_total_s'], s['requests_total']), 'label': f'After {s["connections"]} connections round.'}
+            for s in suites[name]['stats']
+        ])
     return chart
 
 
