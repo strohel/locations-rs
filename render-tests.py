@@ -142,7 +142,7 @@ def requests_vs_connections_figure(names, suites, config):
 
 @figure
 def latency_vs_connections_figure(names, suites, config):
-    chart = pygal.Line(config)
+    chart = pygal.Line(config, logarithmic=True)
     chart.title = '90th Percentile Latency vs. Connections (ms)'
     connections_x_labels(chart, suites, skip=2)
     for name in names:
