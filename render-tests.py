@@ -146,7 +146,7 @@ def latency_vs_connections_figure(names, suites, config):
     chart.title = '90th Percentile Latency vs. Connections (ms)'
     connections_x_labels(chart, suites, skip=2)
     for name in names:
-        chart.add(name, [s['latency_90p_ms'] for s in suites[name]['stats'][2:]])
+        chart.add(name, [s['latency_90p_ms'] if s['requests_new'] else None for s in suites[name]['stats'][2:]])
     return chart
 
 
