@@ -218,6 +218,8 @@ def render_html(md_file, html_file):
         html = gfm(rs)
         # Replace <img> by <embed> for pygal interactivity, http://www.pygal.org/en/latest/documentation/web.html
         html = html.replace('<img', '<embed')
+        # Replace link to md with link to .html for better browsability at HTML level.
+        html = html.replace('/README.md">full benchmark', '/README.html">full benchmark')
         out_fp.write(html)
     print(f'HTML output written to {html_file.resolve().as_uri()}.')
 
