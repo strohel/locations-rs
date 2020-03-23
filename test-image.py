@@ -148,11 +148,15 @@ def run_container(dockerc: docker.DockerClient, run_opts):
     cpuset_cpus = "0-3"  # Assign 4 logical CPUs to the container to simulate our real cluster.
 
     container = dockerc.containers.run(cpuset_cpus=cpuset_cpus, nano_cpus=nano_cpus, **run_opts)
+    stopped = False
     try:
         yield container
     except ContainerDied as e:
         log_check('Stops gracefully', f'Very Bad, probably died after {e.connections} connections')
-    except BaseException:
+        stopped = True
+    finally:
+        if stopped:
+            return
         timeout = 15
         start = perf_counter()
         container.stop(timeout=timeout)
