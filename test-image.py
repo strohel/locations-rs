@@ -150,7 +150,9 @@ def run_container(dockerc: docker.DockerClient, run_opts):
     container = dockerc.containers.run(cpuset_cpus=cpuset_cpus, nano_cpus=nano_cpus, **run_opts)
     try:
         yield container
-    finally:
+    except ContainerDied as e:
+        log_check('Stops gracefully', f'Very Bad, probably died after {e.connections} connections')
+    except BaseException:
         timeout = 15
         start = perf_counter()
         container.stop(timeout=timeout)
@@ -311,8 +313,17 @@ def assert_city_reply(res: requests.Response, expected_id, expected_city, expect
     assert json['regionName'] == expected_region, (expected_region, json)
 
 
+@dataclass
+class ContainerDied(Exception):
+    connections: int = None
+
+
 def collect_stats(container, message, connections=None, latency_90p_ms=None, requests_per_s=None):
-    docker_stats = container.stats(stream=False)
+    try:
+        docker_stats = container.stats(stream=False)
+    except docker.errors.NotFound as e:
+        raise ContainerDied(connections) from e
+
     stats = Stats(
         message,
         cpu_total_s=docker_stats['cpu_stats']['cpu_usage']['total_usage'] / 1000**3,  # docker stats are in nanosecs
