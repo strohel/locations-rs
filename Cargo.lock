@@ -7,6 +7,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d2e7343e7fc9de883d1b0341e0b13970f764c14101234857d2ddafa1cb1cac2"
 
 [[package]]
+name = "ahash"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0989268a37e128d4d7a8028f1c60099430113fdbc70419010601ce51a228e4fe"
+dependencies = [
+ "const-random",
+]
+
+[[package]]
 name = "aho-corasick"
 version = "0.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -191,6 +200,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "const-random"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f1af9ac737b2dd2d577701e59fd09ba34822f6f2ebdb30a7647405d9e55e16a"
+dependencies = [
+ "const-random-macro",
+ "proc-macro-hack",
+]
+
+[[package]]
+name = "const-random-macro"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25e4c606eb459dd29f7c57b2e0879f2b6f14ee130918c2b78ccb58a9624e6c7a"
+dependencies = [
+ "getrandom",
+ "proc-macro-hack",
+]
+
+[[package]]
 name = "cookie"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -311,6 +340,17 @@ dependencies = [
  "pkg-config",
  "vcpkg",
  "winapi 0.3.8",
+]
+
+[[package]]
+name = "dashmap"
+version = "3.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b58d1fe94e8ca0be6d9d1fd0e1cc55ee5c037e4b9bf6a50768ef3f056e28c4c"
+dependencies = [
+ "ahash",
+ "cfg-if",
+ "num_cpus",
 ]
 
 [[package]]
@@ -907,10 +947,12 @@ name = "locations-rs"
 version = "0.1.0"
 dependencies = [
  "async-std",
+ "dashmap",
  "elasticsearch",
  "env_logger",
  "http 0.1.21",
  "log",
+ "once_cell",
  "pretty_env_logger",
  "serde",
  "serde_json",
