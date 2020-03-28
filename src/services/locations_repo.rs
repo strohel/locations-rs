@@ -7,8 +7,10 @@ use crate::{
     },
     stateful::elasticsearch::WithElasticsearch,
 };
+use dashmap::DashMap;
 use elasticsearch::GetParts::IndexTypeId;
 use log::debug;
+use once_cell::sync::Lazy;
 use serde::{de::DeserializeOwned, Deserialize};
 use std::{collections::HashMap, fmt};
 
@@ -24,7 +26,15 @@ impl<S: WithElasticsearch> LocationsElasticRepository<'_, S> {
 
     /// Get [ElasticRegion] from Elasticsearch given its `id`. Async.
     pub(crate) async fn get_region(&self, id: u64) -> Result<ElasticRegion, ErrorResponse> {
-        self.get_entity(id, "region", "Region").await
+        static CACHE: Lazy<DashMap<u64, ElasticRegion>> = Lazy::new(DashMap::new);
+
+        if let Some(record) = CACHE.get(&id) {
+            return Ok(record.value().clone());
+        }
+
+        let entity: ElasticRegion = self.get_entity(id, "region", "Region").await?;
+        CACHE.insert(id, entity.clone());
+        Ok(entity)
     }
 
     async fn get_entity<T: fmt::Debug + DeserializeOwned>(
@@ -72,7 +82,7 @@ pub(crate) struct ElasticCity {
 
 /// Region entity mapped from Elasticsearch.
 #[allow(non_snake_case)]
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub(crate) struct ElasticRegion {
     pub(crate) countryISO: String,
     pub(crate) id: u64,
