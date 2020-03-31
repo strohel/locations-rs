@@ -1,15 +1,19 @@
 //! Handlers for /city/* endpoints.
 
 use crate::{
-    response::{ErrorResponse::BadRequest, JsonResponse, JsonResult},
+    response::{ErrorResponse::BadRequest, JsonResult},
     services::locations_repo::LocationsElasticRepository,
-    Request,
+    AppState,
+};
+use actix_web::{
+    get,
+    web::{Data, Json, Query},
 };
 use serde::{Deserialize, Serialize};
 
 /// Query for the `/city/v1/get` endpoint.
 #[derive(Deserialize)]
-struct CityQuery {
+pub(crate) struct CityQuery {
     id: u64,
     language: String,
 }
@@ -26,10 +30,9 @@ pub(crate) struct CityResponse {
 }
 
 /// The `/city/v1/get` endpoint. Request: [CityQuery], response: [CityResponse].
-pub(crate) async fn get(req: Request) -> JsonResult<CityResponse> {
-    let query: CityQuery = req.query()?;
-
-    let locations_es_repo = LocationsElasticRepository(req.state());
+#[get("/city/v1/get")]
+pub(crate) async fn get(query: Query<CityQuery>, app: Data<AppState>) -> JsonResult<CityResponse> {
+    let locations_es_repo = LocationsElasticRepository(app.get_ref());
     let es_city = locations_es_repo.get_city(query.id).await?;
     let es_region = locations_es_repo.get_region(es_city.regionId).await?;
 
@@ -44,5 +47,5 @@ pub(crate) async fn get(req: Request) -> JsonResult<CityResponse> {
         name: name.to_string(),
         regionName: region_name.to_string(),
     };
-    Ok(JsonResponse(city))
+    Ok(Json(city))
 }

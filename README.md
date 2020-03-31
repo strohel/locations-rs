@@ -1,6 +1,6 @@
 # locations-rs (Locations Service in Rust)
 
-Little proof-of-concept webservice in Rust, using experimental [Tide](https://github.com/http-rs/tide) web framework.
+Little proof-of-concept webservice in Rust, using [Actix](https://actix.rs/) web framework.
 
 ## Build, Build Documentation, Run
 
