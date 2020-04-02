@@ -1178,8 +1178,7 @@ dependencies = [
 [[package]]
 name = "num_cpus"
 version = "1.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46203554f085ff89c235cd12f7075f3233af9b11ed7c9e16dfe2560d03313ce6"
+source = "git+https://github.com/seanmonstar/num_cpus.git?branch=containerized#410984667eb0ec1e6870d298b10fdd47364be9ef"
 dependencies = [
  "hermit-abi",
  "libc",
