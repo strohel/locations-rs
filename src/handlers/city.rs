@@ -43,7 +43,7 @@ pub(crate) async fn get(query: Query<CityQuery>, app: Data<AppState>) -> JsonRes
     let city = CityResponse {
         countryIso: es_city.countryIso,
         id: es_city.id,
-        isFeatured: false, // TODO: isFeatured is not yet in Elastic
+        isFeatured: es_city.isFeatured,
         name: name.to_string(),
         regionName: region_name.to_string(),
     };

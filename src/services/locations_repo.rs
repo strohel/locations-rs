@@ -75,6 +75,8 @@ pub(crate) struct ElasticCity {
     pub(crate) countryIso: String,
     pub(crate) id: u64,
     pub(crate) regionId: u64,
+    #[serde(default)] // Default to false as isFeatured is not filled in for non-featured cities.
+    pub(crate) isFeatured: bool,
 
     #[serde(flatten)] // captures rest of fields, see https://serde.rs/attr-flatten.html
     pub(crate) names: HashMap<String, String>,
