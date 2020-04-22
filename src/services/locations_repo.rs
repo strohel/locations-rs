@@ -1,12 +1,10 @@
 //! Stateless Locations repository backed by Elasticsearch.
 
 use crate::{
-    response::{
-        ErrorResponse,
-        ErrorResponse::{InternalServerError, NotFound},
-    },
+    response::{ErrorResponse, ErrorResponse::NotFound},
     stateful::elasticsearch::WithElasticsearch,
 };
+use actix_web::http::StatusCode;
 use dashmap::DashMap;
 use elasticsearch::GetParts::IndexTypeId;
 use log::debug;
@@ -52,15 +50,11 @@ impl<S: WithElasticsearch> LocationsElasticRepository<'_, S> {
             .send()
             .await?;
 
-        let response_code = response.status_code().as_u16();
-        debug!("Elasticsearch response status: {}.", response_code);
-        if response_code == 404 {
+        if response.status_code() == StatusCode::NOT_FOUND {
             return Err(NotFound(format!("{}#{} not found.", entity_name, id)));
         }
-        if response_code != 200 {
-            return Err(InternalServerError(format!("ES response {}.", response_code)));
-        }
 
+        response.error_for_status_code_ref()?;
         let response_body = response.read_body::<T>().await?;
         debug!("Elasticsearch response body: {:?}.", response_body);
 
