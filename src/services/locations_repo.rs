@@ -72,7 +72,7 @@ impl<S: WithElasticsearch> LocationsElasticRepository<'_, S> {
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
 pub(crate) struct ElasticCity {
-    pub(crate) countryISO: String,
+    pub(crate) countryIso: String,
     pub(crate) id: u64,
     pub(crate) regionId: u64,
 
@@ -84,7 +84,7 @@ pub(crate) struct ElasticCity {
 #[allow(non_snake_case)]
 #[derive(Clone, Debug, Deserialize)]
 pub(crate) struct ElasticRegion {
-    pub(crate) countryISO: String,
+    pub(crate) countryIso: String,
     pub(crate) id: u64,
 
     #[serde(flatten)] // captures rest of fields, see https://serde.rs/attr-flatten.html

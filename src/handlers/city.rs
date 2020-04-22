@@ -22,7 +22,7 @@ pub(crate) struct CityQuery {
 #[allow(non_snake_case)]
 #[derive(Serialize)]
 pub(crate) struct CityResponse {
-    countryISO: String,
+    countryIso: String,
     id: u64,
     isFeatured: bool,
     name: String,
@@ -41,7 +41,7 @@ pub(crate) async fn get(query: Query<CityQuery>, app: Data<AppState>) -> JsonRes
     let region_name = es_region.names.get(&name_key).ok_or_else(|| BadRequest(name_key))?;
 
     let city = CityResponse {
-        countryISO: es_city.countryISO,
+        countryIso: es_city.countryIso,
         id: es_city.id,
         isFeatured: false, // TODO: isFeatured is not yet in Elastic
         name: name.to_string(),
