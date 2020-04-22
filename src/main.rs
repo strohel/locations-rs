@@ -1,4 +1,4 @@
-//! Little proof-of-concept webservice in Rust, using experimental [tide] web framework.
+//! Little proof-of-concept webservice in Rust, using Actix web framework.
 
 // Make writing "unsafe" in code a compilation error. We should not need unsafe at all.
 #![forbid(unsafe_code)]
@@ -12,14 +12,20 @@
 #![warn(clippy::all)]
 
 use crate::stateful::elasticsearch::WithElasticsearch;
+use actix_web::{
+    http::StatusCode,
+    middleware::{errhandlers::ErrorHandlers, Logger},
+    web::Data,
+    App, HttpServer,
+};
 use elasticsearch::Elasticsearch;
 use env_logger::DEFAULT_FILTER_ENV;
 use std::{env, io};
 
+mod error;
 /// Module for endpoint handlers (also known as controllers).
 mod handlers {
     pub(crate) mod city;
-    pub(crate) mod fallback;
 }
 mod response;
 /// Module for stateless services (that may depend on stateful ones from [stateful] module).
@@ -31,10 +37,7 @@ mod stateful {
     pub(crate) mod elasticsearch;
 }
 
-/// Convenience type alias to be used by handlers.
-type Request = tide::Request<AppState>;
-
-#[async_std::main]
+#[actix_rt::main]
 async fn main() -> io::Result<()> {
     // Set default log level to info and then init logging.
     if env::var(DEFAULT_FILTER_ENV).is_err() {
@@ -42,15 +45,22 @@ async fn main() -> io::Result<()> {
     }
     pretty_env_logger::init_timed();
 
-    let mut app = tide::with_state(AppState::new().await);
-    app.middleware(tide::middleware::RequestLogger::new());
-
-    app.at("/city/v1/get").get(handlers::city::get);
-
-    app.at("/").all(handlers::fallback::not_found);
-    app.at("/*").all(handlers::fallback::not_found);
-
-    app.listen("0.0.0.0:8080").await
+    let app_state_data = Data::new(AppState::new().await);
+    HttpServer::new(move || {
+        App::new()
+            .app_data(app_state_data.clone())
+            .wrap(
+                ErrorHandlers::new()
+                    .handler(StatusCode::BAD_REQUEST, error::json_error)
+                    .handler(StatusCode::NOT_FOUND, error::json_error)
+                    .handler(StatusCode::INTERNAL_SERVER_ERROR, error::json_error),
+            )
+            .wrap(Logger::default())
+            .service(handlers::city::get)
+    })
+    .bind("0.0.0.0:8080")?
+    .run()
+    .await
 }
 
 struct AppState {
