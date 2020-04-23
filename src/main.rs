@@ -11,7 +11,7 @@
 // Turn on some extra Clippy (Rust code linter) warnings. Run `cargo clippy`.
 #![warn(clippy::all)]
 
-use crate::stateful::elasticsearch::WithElasticsearch;
+use crate::stateful::elasticsearch::WithElastic;
 use actix_web::{
     http::StatusCode,
     middleware::{errhandlers::ErrorHandlers, Logger},
@@ -75,7 +75,7 @@ impl AppState {
     }
 }
 
-impl WithElasticsearch for AppState {
+impl WithElastic for AppState {
     fn elasticsearch(&self) -> &Elasticsearch {
         &self.elasticsearch
     }

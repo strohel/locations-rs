@@ -5,7 +5,7 @@ use log::info;
 use std::env;
 
 /// Trait to be implemented by application states that contain stateful Elasticsearch client.
-pub(crate) trait WithElasticsearch {
+pub(crate) trait WithElastic {
     /// Get reference to stateful Elasticsearch client.
     fn elasticsearch(&self) -> &Elasticsearch;
 }

@@ -2,7 +2,7 @@
 
 use crate::{
     response::{ErrorResponse, ErrorResponse::NotFound},
-    stateful::elasticsearch::WithElasticsearch,
+    stateful::elasticsearch::WithElastic,
 };
 use actix_web::http::StatusCode;
 use dashmap::DashMap;
@@ -13,10 +13,10 @@ use serde::{de::DeserializeOwned, Deserialize};
 use std::{collections::HashMap, fmt};
 
 /// Repository of Elastic City, Region Locations entities. Thin wrapper around app state.
-pub(crate) struct LocationsElasticRepository<'a, S: WithElasticsearch>(pub(crate) &'a S);
+pub(crate) struct LocationsElasticRepository<'a, S: WithElastic>(pub(crate) &'a S);
 
 // Actual implementation of Locations repository on any app state that impleents [WithElasticsearch].
-impl<S: WithElasticsearch> LocationsElasticRepository<'_, S> {
+impl<S: WithElastic> LocationsElasticRepository<'_, S> {
     /// Get [ElasticCity] from Elasticsearch given its `id`. Async.
     pub(crate) async fn get_city(&self, id: u64) -> Result<ElasticCity, ErrorResponse> {
         self.get_entity(id, "city", "City").await
