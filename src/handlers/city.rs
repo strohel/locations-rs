@@ -5,10 +5,7 @@ use crate::{
     services::locations_repo::LocationsElasticRepository,
     AppState,
 };
-use actix_web::{
-    get,
-    web::{Data, Json, Query},
-};
+use actix_web::web::{Data, Json, Query};
 use serde::{Deserialize, Serialize};
 
 /// Query for the `/city/v1/get` endpoint.
@@ -30,7 +27,6 @@ pub(crate) struct CityResponse {
 }
 
 /// The `/city/v1/get` endpoint. Request: [CityQuery], response: [CityResponse].
-#[get("/city/v1/get")]
 pub(crate) async fn get(query: Query<CityQuery>, app: Data<AppState>) -> JsonResult<CityResponse> {
     let locations_es_repo = LocationsElasticRepository(app.get_ref());
     let es_city = locations_es_repo.get_city(query.id).await?;
