@@ -5,13 +5,16 @@ use actix_web::{http::StatusCode, web::Json, ResponseError};
 /// Result type to be used by endpoints. Either OK [Json] or error [ErrorResponse].
 pub(crate) type JsonResult<T> = Result<Json<T>, ErrorResponse>;
 
-/// Wrapper for error endpoint responses.
+/// Possible error endpoint responses.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum ErrorResponse {
+    /// HTTP 400 Bad Request: client sent something wrong.
     #[error("Bad Request: {0}")]
     BadRequest(String),
+    /// HTTP 404 Not Found: this path or entity does not exist.
     #[error("Not Found: {0}")]
     NotFound(String),
+    /// HTTP 500 Internal Server Error: something went real wrong on the server.
     #[error("Internal Server Error: {0}")]
     InternalServerError(String),
 }

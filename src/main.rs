@@ -23,7 +23,8 @@ use env_logger::DEFAULT_FILTER_ENV;
 use std::{env, io};
 
 mod error;
-/// Module for endpoint handlers (also known as controllers).
+/// Module for endpoint handlers (also known as controllers). This module also serves as an HTTP
+/// REST API documentation for clients.
 mod handlers {
     pub(crate) mod city;
 }

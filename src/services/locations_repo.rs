@@ -66,11 +66,11 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
 #[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
 pub(crate) struct ElasticCity {
-    pub(crate) countryIso: String,
     pub(crate) id: u64,
     pub(crate) regionId: u64,
     #[serde(default)] // Default to false as isFeatured is not filled in for non-featured cities.
     pub(crate) isFeatured: bool,
+    pub(crate) countryIso: String,
 
     #[serde(flatten)] // captures rest of fields, see https://serde.rs/attr-flatten.html
     pub(crate) names: HashMap<String, String>,
@@ -80,8 +80,8 @@ pub(crate) struct ElasticCity {
 #[allow(non_snake_case)]
 #[derive(Clone, Debug, Deserialize)]
 pub(crate) struct ElasticRegion {
-    pub(crate) countryIso: String,
     pub(crate) id: u64,
+    pub(crate) countryIso: String,
 
     #[serde(flatten)] // captures rest of fields, see https://serde.rs/attr-flatten.html
     pub(crate) names: HashMap<String, String>,
