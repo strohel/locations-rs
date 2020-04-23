@@ -1,8 +1,9 @@
 //! Handlers for `/city/*` endpoints.
 
 use crate::{
-    response::{ErrorResponse::BadRequest, JsonResult},
-    services::locations_repo::LocationsElasticRepository,
+    response::{ErrorResponse, ErrorResponse::BadRequest, JsonResult},
+    services::locations_repo::{ElasticCity, LocationsElasticRepository},
+    stateful::elasticsearch::WithElastic,
     AppState,
 };
 use actix_web::web::{Data, Json, Query};
@@ -39,18 +40,30 @@ pub(crate) struct CityResponse {
 pub(crate) async fn get(query: Query<CityQuery>, app: Data<AppState>) -> JsonResult<CityResponse> {
     let locations_es_repo = LocationsElasticRepository(app.get_ref());
     let es_city = locations_es_repo.get_city(query.id).await?;
-    let es_region = locations_es_repo.get_region(es_city.regionId).await?;
 
-    let name_key = format!("name.{}", query.language);
-    let name = es_city.names.get(&name_key).ok_or_else(|| BadRequest(name_key.clone()))?;
-    let region_name = es_region.names.get(&name_key).ok_or_else(|| BadRequest(name_key))?;
+    Ok(Json(es_city.into_resp(app.get_ref(), &query.language).await?))
+}
 
-    let city = CityResponse {
-        id: es_city.id,
-        isFeatured: es_city.isFeatured,
-        countryIso: es_city.countryIso,
-        name: name.to_string(),
-        regionName: region_name.to_string(),
-    };
-    Ok(Json(city))
+impl ElasticCity {
+    /// Transform ElasticCity into CityResponse, fetching the region.
+    async fn into_resp<T: WithElastic>(
+        self,
+        app: &T,
+        language: &str,
+    ) -> Result<CityResponse, ErrorResponse> {
+        let locations_es_repo = LocationsElasticRepository(app);
+        let es_region = locations_es_repo.get_region(self.regionId).await?;
+
+        let name_key = format!("name.{}", language);
+        let name = self.names.get(&name_key).ok_or_else(|| BadRequest(name_key.clone()))?;
+        let region_name = es_region.names.get(&name_key).ok_or_else(|| BadRequest(name_key))?;
+
+        Ok(CityResponse {
+            id: self.id,
+            isFeatured: self.isFeatured,
+            countryIso: self.countryIso,
+            name: name.to_string(),
+            regionName: region_name.to_string(),
+        })
+    }
 }

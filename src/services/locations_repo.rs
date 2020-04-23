@@ -12,6 +12,10 @@ use once_cell::sync::Lazy;
 use serde::{de::DeserializeOwned, Deserialize};
 use std::{collections::HashMap, fmt};
 
+const REGION_INDEX: &str = "region";
+const CITY_INDEX: &str = "city";
+const EXCLUDED_FIELDS: &[&str] = &["centroid", "geometry"];
+
 /// Repository of Elastic City, Region Locations entities. Thin wrapper around app state.
 pub(crate) struct LocationsElasticRepository<'a, S: WithElastic>(pub(crate) &'a S);
 
@@ -19,7 +23,7 @@ pub(crate) struct LocationsElasticRepository<'a, S: WithElastic>(pub(crate) &'a 
 impl<S: WithElastic> LocationsElasticRepository<'_, S> {
     /// Get [ElasticCity] from Elasticsearch given its `id`. Async.
     pub(crate) async fn get_city(&self, id: u64) -> Result<ElasticCity, ErrorResponse> {
-        self.get_entity(id, "city", "City").await
+        self.get_entity(id, CITY_INDEX, "City").await
     }
 
     /// Get [ElasticRegion] from Elasticsearch given its `id`. Async.
@@ -30,7 +34,7 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
             return Ok(record.value().clone());
         }
 
-        let entity: ElasticRegion = self.get_entity(id, "region", "Region").await?;
+        let entity: ElasticRegion = self.get_entity(id, REGION_INDEX, "Region").await?;
         CACHE.insert(id, entity.clone());
         Ok(entity)
     }
@@ -43,10 +47,9 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
     ) -> Result<T, ErrorResponse> {
         let es = self.0.elasticsearch();
 
-        let excluded_fields = ["centroid", "geometry"];
         let response = es
             .get(IndexTypeId(index_name, "_source", &id.to_string()))
-            ._source_excludes(&excluded_fields)
+            ._source_excludes(EXCLUDED_FIELDS)
             .send()
             .await?;
 
