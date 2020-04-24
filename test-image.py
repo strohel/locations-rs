@@ -314,9 +314,16 @@ def http_check_graz_cs_extra_param(session: requests.Session):
 
 def assert_city_reply(res: requests.Response, expected_id, expected_city, expected_region, expected_country,
                       expected_is_featured=None):
+    assert_ok_json_reply(res)
+    assert_city_payload(res.json(), expected_id, expected_city, expected_region, expected_country, expected_is_featured)
+
+
+def assert_ok_json_reply(res: requests.Response):
     assert res.status_code == 200, (res, res.text)
     assert res.headers['content-type'].startswith('application/json'), res.headers
-    json = res.json()
+
+
+def assert_city_payload(json, expected_id, expected_city, expected_region, expected_country, expected_is_featured):
     assert json.keys() == {'countryIso', 'id', 'isFeatured', 'name', 'regionName'}, json
     assert json['countryIso'] == expected_country, (expected_country, json)
     assert json['id'] == expected_id, (expected_id, json)
@@ -326,6 +333,28 @@ def assert_city_reply(res: requests.Response, expected_id, expected_city, expect
         assert type(json['isFeatured']) == bool, json  # Not yet in Elastic, check just type
     assert json['name'] == expected_city, (expected_city, json)
     assert json['regionName'] == expected_region, (expected_region, json)
+
+
+@http_check
+def http_check_featured_no_lang(session: requests.Session):
+    """HTTP GET /city/v1/featured returns 400 with error JSON with message"""
+    res = session.get(URL_PREFIX + "/city/v1/featured")
+    assert_error_reply(res, 400)
+
+
+@http_check
+def http_check_featured(session: requests.Session):
+    """HTTP GET /city/v1/featured?language=cs returns 200 and correct list of cities"""
+    res = session.get(URL_PREFIX + "/city/v1/featured?language=cs")
+    assert_ok_json_reply(res)
+    json = res.json()
+
+    assert json.keys() == {'cities'}, json
+    assert type(json['cities']) == list, json
+    assert 1 <= len(json['cities']) <= 20, json
+
+    (praha,) = (city for city in json['cities'] if city['id'] == 101748113)
+    assert_city_payload(praha, 101748113, "Praha", "Hlavní město Praha", "CZ", True)
 
 
 @dataclass

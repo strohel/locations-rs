@@ -6,10 +6,11 @@ use crate::{
 };
 use actix_web::http::StatusCode;
 use dashmap::DashMap;
-use elasticsearch::GetParts::IndexTypeId;
+use elasticsearch::{GetParts::IndexTypeId, SearchParts::Index};
 use log::debug;
 use once_cell::sync::Lazy;
 use serde::{de::DeserializeOwned, Deserialize};
+use serde_json::json;
 use std::{collections::HashMap, fmt};
 
 const REGION_INDEX: &str = "region";
@@ -37,6 +38,30 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
         let entity: ElasticRegion = self.get_entity(id, REGION_INDEX, "Region").await?;
         CACHE.insert(id, entity.clone());
         Ok(entity)
+    }
+
+    /// Get a list of featured cities. Async.
+    pub(crate) async fn get_featured_cities(&self) -> Result<Vec<ElasticCity>, ErrorResponse> {
+        let es = self.0.elasticsearch();
+
+        let response = es
+            .search(Index(&[CITY_INDEX]))
+            .body(json!({
+                "query": {
+                    "term": {
+                        "isFeatured": true,
+                    }
+                }
+            }))
+            ._source_excludes(EXCLUDED_FIELDS)
+            .size(1000)
+            .send()
+            .await?
+            .error_for_status_code()?;
+        let response_body = response.read_body::<SearchResponse<ElasticCity>>().await?;
+        debug!("Elasticsearch response body: {:?}.", response_body);
+
+        Ok(response_body.hits.hits.into_iter().map(|hit| hit._source).collect())
     }
 
     async fn get_entity<T: fmt::Debug + DeserializeOwned>(
@@ -88,4 +113,19 @@ pub(crate) struct ElasticRegion {
 
     #[serde(flatten)] // captures rest of fields, see https://serde.rs/attr-flatten.html
     pub(crate) names: HashMap<String, String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SearchResponse<T> {
+    hits: HitsResponse<T>,
+}
+
+#[derive(Debug, Deserialize)]
+struct HitsResponse<T> {
+    hits: Vec<Hit<T>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Hit<T> {
+    _source: T,
 }

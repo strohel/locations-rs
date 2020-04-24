@@ -7,6 +7,7 @@ use crate::{
     AppState,
 };
 use actix_web::web::{Data, Json, Query};
+use futures::{stream::FuturesOrdered, TryStreamExt};
 use serde::{Deserialize, Serialize};
 
 /// Query for the `/city/v1/get` endpoint.
@@ -42,6 +43,36 @@ pub(crate) async fn get(query: Query<CityQuery>, app: Data<AppState>) -> JsonRes
     let es_city = locations_es_repo.get_city(query.id).await?;
 
     Ok(Json(es_city.into_resp(app.get_ref(), &query.language).await?))
+}
+
+/// Query for the `/city/v1/featured` endpoint.
+#[derive(Deserialize)]
+pub(crate) struct FeaturedQuery {
+    /// Two-letter ISO 639-1 lowercase language code for response localization.
+    language: String,
+}
+
+/// A list of `City` API entities.
+#[derive(Serialize)]
+pub(crate) struct MultiCityResponse {
+    cities: Vec<CityResponse>,
+}
+
+/// The `/city/v1/featured` endpoint. HTTP request: [`FeaturedQuery`], response: [`MultiCityResponse`].
+///
+/// Returns a list of all featured cities.
+pub(crate) async fn featured(
+    query: Query<FeaturedQuery>,
+    app: Data<AppState>,
+) -> JsonResult<MultiCityResponse> {
+    let locations_es_repo = LocationsElasticRepository(app.get_ref());
+    let es_cities = locations_es_repo.get_featured_cities().await?;
+
+    // Fetch needed regions concurrently, maintaining order. Somewhat redundant with region cache.
+    let city_futures: FuturesOrdered<_> =
+        es_cities.into_iter().map(|it| it.into_resp(app.get_ref(), &query.language)).collect();
+
+    Ok(Json(MultiCityResponse { cities: city_futures.try_collect().await? }))
 }
 
 impl ElasticCity {
