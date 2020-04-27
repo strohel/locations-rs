@@ -307,9 +307,9 @@ def http_check_brno_de(session: requests.Session):
 
 @http_check
 def http_check_graz_cs_extra_param(session: requests.Session):
-    """HTTP GET /city/v1/get?id=1108839329&language=cs&extra=paramShouldBeIgnored returns 200 and correct object"""
-    res = session.get(URL_PREFIX + "/city/v1/get?id=1108839329&language=cs&extra=paramShouldBeIgnored")
-    assert_city_reply(res, 1108839329, "Štýrský Hradec", "Štýrsko", "AT", False)
+    """HTTP GET /city/v1/get?id=101748063&language=cs&extra=paramShouldBeIgnored returns 200 and correct object"""
+    res = session.get(URL_PREFIX + "/city/v1/get?id=101748063&language=cs&extra=paramShouldBeIgnored")
+    assert_city_reply(res, 101748063, "Štýrský Hradec", "Štýrsko", "AT", False)
 
 
 def assert_city_reply(res: requests.Response, expected_id, expected_city, expected_region, expected_country,
