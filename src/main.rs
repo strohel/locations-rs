@@ -58,6 +58,7 @@ async fn main() -> io::Result<()> {
             )
             .wrap(Logger::default())
             .route("/city/v1/get", get().to(handlers::city::get))
+            .route("/city/v1/featured", get().to(handlers::city::featured))
     })
     .bind("0.0.0.0:8080")?
     .run()

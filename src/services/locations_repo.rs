@@ -6,11 +6,16 @@ use crate::{
 };
 use actix_web::http::StatusCode;
 use dashmap::DashMap;
-use elasticsearch::GetParts::IndexTypeId;
+use elasticsearch::{GetParts::IndexTypeId, SearchParts::Index};
 use log::debug;
 use once_cell::sync::Lazy;
 use serde::{de::DeserializeOwned, Deserialize};
+use serde_json::json;
 use std::{collections::HashMap, fmt};
+
+const REGION_INDEX: &str = "region";
+const CITY_INDEX: &str = "city";
+const EXCLUDED_FIELDS: &[&str] = &["centroid", "geometry"];
 
 /// Repository of Elastic City, Region Locations entities. Thin wrapper around app state.
 pub(crate) struct LocationsElasticRepository<'a, S: WithElastic>(pub(crate) &'a S);
@@ -19,7 +24,7 @@ pub(crate) struct LocationsElasticRepository<'a, S: WithElastic>(pub(crate) &'a 
 impl<S: WithElastic> LocationsElasticRepository<'_, S> {
     /// Get [ElasticCity] from Elasticsearch given its `id`. Async.
     pub(crate) async fn get_city(&self, id: u64) -> Result<ElasticCity, ErrorResponse> {
-        self.get_entity(id, "city", "City").await
+        self.get_entity(id, CITY_INDEX, "City").await
     }
 
     /// Get [ElasticRegion] from Elasticsearch given its `id`. Async.
@@ -30,9 +35,33 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
             return Ok(record.value().clone());
         }
 
-        let entity: ElasticRegion = self.get_entity(id, "region", "Region").await?;
+        let entity: ElasticRegion = self.get_entity(id, REGION_INDEX, "Region").await?;
         CACHE.insert(id, entity.clone());
         Ok(entity)
+    }
+
+    /// Get a list of featured cities. Async.
+    pub(crate) async fn get_featured_cities(&self) -> Result<Vec<ElasticCity>, ErrorResponse> {
+        let es = self.0.elasticsearch();
+
+        let response = es
+            .search(Index(&[CITY_INDEX]))
+            .body(json!({
+                "query": {
+                    "term": {
+                        "isFeatured": true,
+                    }
+                }
+            }))
+            ._source_excludes(EXCLUDED_FIELDS)
+            .size(1000)
+            .send()
+            .await?
+            .error_for_status_code()?;
+        let response_body = response.read_body::<SearchResponse<ElasticCity>>().await?;
+        debug!("Elasticsearch response body: {:?}.", response_body);
+
+        Ok(response_body.hits.hits.into_iter().map(|hit| hit._source).collect())
     }
 
     async fn get_entity<T: fmt::Debug + DeserializeOwned>(
@@ -43,10 +72,9 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
     ) -> Result<T, ErrorResponse> {
         let es = self.0.elasticsearch();
 
-        let excluded_fields = ["centroid", "geometry"];
         let response = es
             .get(IndexTypeId(index_name, "_source", &id.to_string()))
-            ._source_excludes(&excluded_fields)
+            ._source_excludes(EXCLUDED_FIELDS)
             .send()
             .await?;
 
@@ -85,4 +113,19 @@ pub(crate) struct ElasticRegion {
 
     #[serde(flatten)] // captures rest of fields, see https://serde.rs/attr-flatten.html
     pub(crate) names: HashMap<String, String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SearchResponse<T> {
+    hits: HitsResponse<T>,
+}
+
+#[derive(Debug, Deserialize)]
+struct HitsResponse<T> {
+    hits: Vec<Hit<T>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Hit<T> {
+    _source: T,
 }
