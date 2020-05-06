@@ -58,7 +58,7 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
             .send()
             .await?
             .error_for_status_code()?;
-        let response_body = response.read_body::<SearchResponse<ElasticCity>>().await?;
+        let response_body = response.json::<SearchResponse<ElasticCity>>().await?;
         debug!("Elasticsearch response body: {:?}.", response_body);
 
         Ok(response_body.hits.hits.into_iter().map(|hit| hit._source).collect())
@@ -83,7 +83,7 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
         }
 
         response.error_for_status_code_ref()?;
-        let response_body = response.read_body::<T>().await?;
+        let response_body = response.json::<T>().await?;
         debug!("Elasticsearch response body: {:?}.", response_body);
 
         Ok(response_body)
