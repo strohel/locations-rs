@@ -343,6 +343,13 @@ def http_check_featured_no_lang(session: requests.Session):
 
 
 @http_check
+def http_check_featured_invalid_lang(session: requests.Session):
+    """HTTP GET /city/v1/featured?language=invalid returns 400 with error JSON with message"""
+    res = session.get(URL_PREFIX + "/city/v1/featured?language=invalid")
+    assert_error_reply(res, 400)
+
+
+@http_check
 def http_check_featured(session: requests.Session):
     """HTTP GET /city/v1/featured?language=cs returns 200 and correct list of cities"""
     res = session.get(URL_PREFIX + "/city/v1/featured?language=cs")
