@@ -10,7 +10,7 @@ use elasticsearch::{GetParts::IndexTypeId, SearchParts::Index};
 use log::debug;
 use once_cell::sync::Lazy;
 use serde::{de::DeserializeOwned, Deserialize};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::{collections::HashMap, fmt};
 
 const REGION_INDEX: &str = "region";
@@ -59,11 +59,8 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
 
     /// Get a list of featured cities. Async.
     pub(crate) async fn get_featured_cities(&self) -> Result<Vec<ElasticCity>, ErrorResponse> {
-        let es = self.0.elasticsearch();
-
-        let response = es
-            .search(Index(&[CITY_INDEX]))
-            .body(json!({
+        self.search_city(
+            json!({
                 "query": {
                     "term": {
                         "isFeatured": true,
@@ -73,16 +70,10 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
                     "countryIso",
                     { "population": "desc" },
                 ],
-            }))
-            ._source_excludes(EXCLUDED_FIELDS)
-            .size(1000)
-            .send()
-            .await?
-            .error_for_status_code()?;
-        let response_body = response.json::<SearchResponse<ElasticCity>>().await?;
-        debug!("Elasticsearch response body: {:?}.", response_body);
-
-        Ok(response_body.hits.hits.into_iter().map(|hit| hit._source).collect())
+            }),
+            1000,
+        )
+        .await
     }
 
     async fn get_entity<T: fmt::Debug + DeserializeOwned>(
@@ -108,6 +99,23 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
         debug!("Elasticsearch response body: {:?}.", response_body);
 
         Ok(response_body)
+    }
+
+    async fn search_city(&self, body: Value, size: i64) -> Result<Vec<ElasticCity>, ErrorResponse> {
+        let es = self.0.elasticsearch();
+
+        let response = es
+            .search(Index(&[CITY_INDEX]))
+            .body(body)
+            ._source_excludes(EXCLUDED_FIELDS)
+            .size(size)
+            .send()
+            .await?
+            .error_for_status_code()?;
+        let response_body = response.json::<SearchResponse<ElasticCity>>().await?;
+        debug!("Elasticsearch response body: {:?}.", response_body);
+
+        Ok(response_body.hits.hits.into_iter().map(|hit| hit._source).collect())
     }
 }
 

@@ -76,11 +76,7 @@ pub(crate) async fn featured(
     };
     es_cities.sort_by_key(|c| Reverse(c.countryIso == preferred_country_iso));
 
-    // Fetch needed regions concurrently, maintaining order. Somewhat redundant with region cache.
-    let city_futures: FuturesOrdered<_> =
-        es_cities.into_iter().map(|it| it.into_resp(app.get_ref(), query.language)).collect();
-
-    Ok(Json(MultiCityResponse { cities: city_futures.try_collect().await? }))
+    es_cities_into_resp(app.get_ref(), es_cities, query.language).await
 }
 
 impl ElasticCity {
@@ -105,4 +101,18 @@ impl ElasticCity {
             regionName: region_name.to_string(),
         })
     }
+}
+
+/// Convert a vector of [ElasticCity] into [MultiCityResponse], maintaining order and fetching
+/// required regions asynchronously all in parallel (which is somewhat redundant with
+/// [ElasticRegion] cache).
+async fn es_cities_into_resp<T: WithElastic>(
+    app: &T,
+    es_cities: Vec<ElasticCity>,
+    language: Language,
+) -> JsonResult<MultiCityResponse> {
+    let city_futures: FuturesOrdered<_> =
+        es_cities.into_iter().map(|it| it.into_resp(app, language)).collect();
+
+    city_futures.try_collect().await.map(|cities| Json(MultiCityResponse { cities }))
 }
