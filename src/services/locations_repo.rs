@@ -17,6 +17,23 @@ const REGION_INDEX: &str = "region";
 const CITY_INDEX: &str = "city";
 const EXCLUDED_FIELDS: &[&str] = &["centroid", "geometry"];
 
+/// Language for response localization. Serialized as two-letter ISO 639-1 lowercase language code.
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum Language {
+    CS,
+    DE,
+    EN,
+    PL,
+    SK,
+}
+
+impl Language {
+    pub(crate) fn name_key(self) -> String {
+        format!("name.{:?}", self).to_lowercase()
+    }
+}
+
 /// Repository of Elastic City, Region Locations entities. Thin wrapper around app state.
 pub(crate) struct LocationsElasticRepository<'a, S: WithElastic>(pub(crate) &'a S);
 
