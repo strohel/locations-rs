@@ -68,7 +68,11 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
                     "term": {
                         "isFeatured": true,
                     }
-                }
+                },
+                "sort": [
+                    "countryIso",
+                    { "population": "desc" },
+                ],
             }))
             ._source_excludes(EXCLUDED_FIELDS)
             .size(1000)

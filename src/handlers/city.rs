@@ -9,6 +9,7 @@ use crate::{
 use actix_web::web::{Data, Json, Query};
 use futures::{stream::FuturesOrdered, TryStreamExt};
 use serde::{Deserialize, Serialize};
+use std::cmp::Reverse;
 
 /// Query for the `/city/v1/get` endpoint.
 #[derive(Deserialize)]
@@ -64,7 +65,16 @@ pub(crate) async fn featured(
     app: Data<AppState>,
 ) -> JsonResult<MultiCityResponse> {
     let locations_es_repo = LocationsElasticRepository(app.get_ref());
-    let es_cities = locations_es_repo.get_featured_cities().await?;
+    let mut es_cities = locations_es_repo.get_featured_cities().await?;
+
+    let preferred_country_iso = match query.language {
+        Language::CS => "CZ",
+        Language::DE => "DE",
+        Language::EN => "CZ",
+        Language::PL => "PL",
+        Language::SK => "SK",
+    };
+    es_cities.sort_by_key(|c| Reverse(c.countryIso == preferred_country_iso));
 
     // Fetch needed regions concurrently, maintaining order. Somewhat redundant with region cache.
     let city_futures: FuturesOrdered<_> =

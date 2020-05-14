@@ -350,12 +350,24 @@ def http_check_featured_invalid_lang(session: requests.Session):
 
 
 @http_check
-def http_check_featured(session: requests.Session):
+def http_check_featured_cs(session: requests.Session):
     """HTTP GET /city/v1/featured?language=cs returns 200 and correct list of cities"""
     res = session.get(URL_PREFIX + "/city/v1/featured?language=cs")
-    cities = assert_cities_reply(res, 1, 20)
-    (praha,) = (city for city in cities if city['id'] == 101748113)
-    assert_city_payload(praha, 101748113, "Praha", "Hlavní město Praha", "CZ", True)
+    cities = assert_cities_reply(res, 10, 10)
+    names = [c['name'] for c in cities]
+    assert names == [
+        "Praha", "Brno", "Ostrava", "Plzeň", "Berlín", "Varšava", "Krakov", "Vratislav", "Poznaň", "Bratislava"], names
+    assert_city_payload(cities[0], 101748113, "Praha", "Hlavní město Praha", "CZ", True)
+
+
+@http_check
+def http_check_featured_sk(session: requests.Session):
+    """HTTP GET /city/v1/featured?language=sk returns 200 and correct list of cities"""
+    res = session.get(URL_PREFIX + "/city/v1/featured?language=sk")
+    cities = assert_cities_reply(res, 10, 10)
+    names = [c['name'] for c in cities]
+    assert names == [
+        "Bratislava", "Praha", "Brno", "Ostrava", "Plzeň", "Berlín", "Varšava", "Krakov", "Vroclav", "Poznaň"], names
 
 
 def assert_cities_reply(res, min_len, max_len):
