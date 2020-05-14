@@ -79,6 +79,32 @@ pub(crate) async fn featured(
     es_cities_into_resp(app.get_ref(), es_cities, query.language).await
 }
 
+/// Query for the `/city/v1/search` endpoint.
+#[allow(non_snake_case)]
+#[derive(Deserialize)]
+pub(crate) struct SearchQuery {
+    /// The search query.
+    query: String,
+    /// ISO 3166-1 alpha-2 country code. Can be used to limit scope of the search to a given country.
+    countryIso: Option<String>,
+    language: Language,
+}
+
+/// The `/city/v1/search` endpoint. HTTP request: [`SearchQuery`], response: [`MultiCityResponse`].
+///
+/// Returns list of cities matching the 'query' parameter.
+/// The response is limited to 10 cities and no pagination is provided.
+pub(crate) async fn search(
+    query: Query<SearchQuery>,
+    app: Data<AppState>,
+) -> JsonResult<MultiCityResponse> {
+    let locations_es_repo = LocationsElasticRepository(app.get_ref());
+    let es_cities =
+        locations_es_repo.search(&query.query, query.language, query.countryIso.as_deref()).await?;
+
+    es_cities_into_resp(app.get_ref(), es_cities, query.language).await
+}
+
 impl ElasticCity {
     /// Transform ElasticCity into CityResponse, fetching the region.
     async fn into_resp<T: WithElastic>(
