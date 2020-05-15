@@ -2,21 +2,21 @@
 
 use crate::{
     response::{ErrorResponse, ErrorResponse::BadRequest, JsonResult},
-    services::locations_repo::{ElasticCity, LocationsElasticRepository},
+    services::locations_repo::{ElasticCity, Language, LocationsElasticRepository},
     stateful::elasticsearch::WithElastic,
     AppState,
 };
 use actix_web::web::{Data, Json, Query};
 use futures::{stream::FuturesOrdered, TryStreamExt};
 use serde::{Deserialize, Serialize};
+use std::cmp::Reverse;
 
 /// Query for the `/city/v1/get` endpoint.
 #[derive(Deserialize)]
 pub(crate) struct CityQuery {
     /// Id of the city to get, positive integer.
     id: u64,
-    /// Two-letter ISO 639-1 lowercase language code for response localization.
-    language: String,
+    language: Language,
 }
 
 /// `City` API entity. All city endpoints respond with this payload (or a composition of it).
@@ -42,14 +42,13 @@ pub(crate) async fn get(query: Query<CityQuery>, app: Data<AppState>) -> JsonRes
     let locations_es_repo = LocationsElasticRepository(app.get_ref());
     let es_city = locations_es_repo.get_city(query.id).await?;
 
-    Ok(Json(es_city.into_resp(app.get_ref(), &query.language).await?))
+    Ok(Json(es_city.into_resp(app.get_ref(), query.language).await?))
 }
 
 /// Query for the `/city/v1/featured` endpoint.
 #[derive(Deserialize)]
 pub(crate) struct FeaturedQuery {
-    /// Two-letter ISO 639-1 lowercase language code for response localization.
-    language: String,
+    language: Language,
 }
 
 /// A list of `City` API entities.
@@ -66,11 +65,20 @@ pub(crate) async fn featured(
     app: Data<AppState>,
 ) -> JsonResult<MultiCityResponse> {
     let locations_es_repo = LocationsElasticRepository(app.get_ref());
-    let es_cities = locations_es_repo.get_featured_cities().await?;
+    let mut es_cities = locations_es_repo.get_featured_cities().await?;
+
+    let preferred_country_iso = match query.language {
+        Language::CS => "CZ",
+        Language::DE => "DE",
+        Language::EN => "CZ",
+        Language::PL => "PL",
+        Language::SK => "SK",
+    };
+    es_cities.sort_by_key(|c| Reverse(c.countryIso == preferred_country_iso));
 
     // Fetch needed regions concurrently, maintaining order. Somewhat redundant with region cache.
     let city_futures: FuturesOrdered<_> =
-        es_cities.into_iter().map(|it| it.into_resp(app.get_ref(), &query.language)).collect();
+        es_cities.into_iter().map(|it| it.into_resp(app.get_ref(), query.language)).collect();
 
     Ok(Json(MultiCityResponse { cities: city_futures.try_collect().await? }))
 }
@@ -80,12 +88,12 @@ impl ElasticCity {
     async fn into_resp<T: WithElastic>(
         self,
         app: &T,
-        language: &str,
+        language: Language,
     ) -> Result<CityResponse, ErrorResponse> {
         let locations_es_repo = LocationsElasticRepository(app);
         let es_region = locations_es_repo.get_region(self.regionId).await?;
 
-        let name_key = format!("name.{}", language);
+        let name_key = language.name_key();
         let name = self.names.get(&name_key).ok_or_else(|| BadRequest(name_key.clone()))?;
         let region_name = es_region.names.get(&name_key).ok_or_else(|| BadRequest(name_key))?;
 
