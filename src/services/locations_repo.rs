@@ -10,7 +10,7 @@ use elasticsearch::{GetParts::IndexTypeId, SearchParts::Index};
 use log::debug;
 use once_cell::sync::Lazy;
 use serde::{de::DeserializeOwned, Deserialize};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::{collections::HashMap, fmt};
 
 const REGION_INDEX: &str = "region";
@@ -59,11 +59,8 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
 
     /// Get a list of featured cities. Async.
     pub(crate) async fn get_featured_cities(&self) -> Result<Vec<ElasticCity>, ErrorResponse> {
-        let es = self.0.elasticsearch();
-
-        let response = es
-            .search(Index(&[CITY_INDEX]))
-            .body(json!({
+        self.search_city(
+            json!({
                 "query": {
                     "term": {
                         "isFeatured": true,
@@ -73,16 +70,82 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
                     "countryIso",
                     { "population": "desc" },
                 ],
-            }))
-            ._source_excludes(EXCLUDED_FIELDS)
-            .size(1000)
-            .send()
-            .await?
-            .error_for_status_code()?;
-        let response_body = response.json::<SearchResponse<ElasticCity>>().await?;
-        debug!("Elasticsearch response body: {:?}.", response_body);
+            }),
+            1000,
+        )
+        .await
+    }
 
-        Ok(response_body.hits.hits.into_iter().map(|hit| hit._source).collect())
+    /// Search for cities. Optionally limit to a country given its ISO code.
+    pub(crate) async fn search(
+        &self,
+        query: &str,
+        language: Language,
+        country_iso: Option<&str>,
+    ) -> Result<Vec<ElasticCity>, ErrorResponse> {
+        let name_key = language.name_key();
+
+        self.search_city(
+            json!({
+                "query": {
+                    "function_score": {
+                        "query": {
+                            "bool": {
+                                "must": [{
+                                    "multi_match": {
+                                        "query": query,
+                                        "fields": [
+                                            // Match against the specified language with diacritics.
+                                            // Use the highest boost (8) because these three fields are most specific.
+                                            format!("{}.autocomplete^8.0", name_key),
+                                            format!("{}.autocomplete._2gram^8.0", name_key),
+                                            format!("{}.autocomplete._3gram^8.0", name_key),
+                                            // Match against ascii versions of the name to match queries without diacritics.
+                                            // Lower boost by factor of two, to prefer cities that matched with diacritics.
+                                            format!("{}.autocomplete_ascii^4.0", name_key),
+                                            format!("{}.autocomplete_ascii._2gram^4.0", name_key),
+                                            format!("{}.autocomplete_ascii._3gram^4.0", name_key),
+                                            // Match against all language mutations with diacritics.
+                                            // Lower the boost by factor of 4 to prefer matches in specified language.
+                                            "name.all.autocomplete^2.0",
+                                            "name.all.autocomplete._2gram^2.0",
+                                            "name.all.autocomplete._3gram^2.0",
+                                            // Match against ascii version of all language mutations.
+                                            // Lower the boost by factor of 8 because this is the least specific field.
+                                            "name.all.autocomplete_ascii^1.0",
+                                            "name.all.autocomplete_ascii._2gram^1.0",
+                                            "name.all.autocomplete_ascii._3gram^1.0",
+                                        ],
+                                        "type": "bool_prefix",
+                                    }
+                                }],
+                                "filter": match country_iso {
+                                    Some(iso_code) => json!([{
+                                        "term": {
+                                            "countryIso": iso_code
+                                        }}]),
+                                    None => json!([])
+                                },
+                            }
+                        },
+                        // Boost cities with higher population.
+                        "functions": [{
+                            "field_value_factor": {
+                                "field": "population",
+                                // Take logarithm of the city's population to account for human's logarithmic perception of size.
+                                // Add 2 before taking the logarithm to make the score function strictly positive,
+                                // because it's multiplied with the MultiMatch score.
+                                "modifier": "ln2p",
+                                // For missing values assume 500 humans live there.
+                                "missing": 500,
+                            }
+                        }],
+                    }
+                },
+            }),
+            10,
+        )
+        .await
     }
 
     async fn get_entity<T: fmt::Debug + DeserializeOwned>(
@@ -108,6 +171,23 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
         debug!("Elasticsearch response body: {:?}.", response_body);
 
         Ok(response_body)
+    }
+
+    async fn search_city(&self, body: Value, size: i64) -> Result<Vec<ElasticCity>, ErrorResponse> {
+        let es = self.0.elasticsearch();
+
+        let response = es
+            .search(Index(&[CITY_INDEX]))
+            .body(body)
+            ._source_excludes(EXCLUDED_FIELDS)
+            .size(size)
+            .send()
+            .await?
+            .error_for_status_code()?;
+        let response_body = response.json::<SearchResponse<ElasticCity>>().await?;
+        debug!("Elasticsearch response body: {:?}.", response_body);
+
+        Ok(response_body.hits.hits.into_iter().map(|hit| hit._source).collect())
     }
 }
 

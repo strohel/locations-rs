@@ -382,6 +382,42 @@ def assert_cities_reply(res, min_len, max_len):
     return cities
 
 
+@http_check
+def http_check_search_brunn(session: requests.Session):
+    """HTTP GET /city/v1/search?language=de&query=Brno returns 200 and just Brünn"""
+    res = session.get(URL_PREFIX + "/city/v1/search?language=de&query=Brno")
+    cities = assert_cities_reply(res, 0, 10)
+    names = [c['name'] for c in cities]
+    assert names == ['Brünn'], names
+
+
+@http_check
+def http_check_search_kremze_diacritics(session: requests.Session):
+    """HTTP GET /city/v1/search?language=cs&query=křemže returns 200 and CZ city first"""
+    res = session.get(URL_PREFIX + "/city/v1/search?language=cs&query=křemže")
+    cities = assert_cities_reply(res, 0, 10)
+    names = [c['name'] for c in cities]
+    assert names == ['Křemže', 'Kremže'], names  # assert that correct diacritics boost match
+
+
+@http_check
+def http_check_search_kremze_ascii(session: requests.Session):
+    """HTTP GET /city/v1/search?language=cs&query=kremze returns 200 and AT city first"""
+    res = session.get(URL_PREFIX + "/city/v1/search?language=cs&query=kremze")
+    cities = assert_cities_reply(res, 0, 10)
+    names = [c['name'] for c in cities]
+    assert names == ['Kremže', 'Křemže'], names  # assert that ascii-only match orders by population
+
+
+@http_check
+def http_check_search_kremze_diacritics_in_at(session: requests.Session):
+    """HTTP GET /city/v1/search?language=cs&query=křemže&countryIso=at returns 200 and AT city only"""
+    res = session.get(URL_PREFIX + "/city/v1/search?language=cs&query=křemže&countryIso=AT")
+    cities = assert_cities_reply(res, 0, 10)
+    names = [c['name'] for c in cities]
+    assert names == ['Kremže'], names
+
+
 @dataclass
 class ContainerDied(Exception):
     connections: int = None
