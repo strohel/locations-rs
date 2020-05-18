@@ -1,7 +1,7 @@
 //! Stateless Locations repository backed by Elasticsearch.
 
 use crate::{
-    response::{ErrorResponse, ErrorResponse::NotFound},
+    response::{ErrorResponse::NotFound, HandlerResult},
     stateful::elasticsearch::WithElastic,
 };
 use actix_web::http::StatusCode;
@@ -40,12 +40,12 @@ pub(crate) struct LocationsElasticRepository<'a, S: WithElastic>(pub(crate) &'a 
 // Actual implementation of Locations repository on any app state that impleents [WithElasticsearch].
 impl<S: WithElastic> LocationsElasticRepository<'_, S> {
     /// Get [ElasticCity] from Elasticsearch given its `id`. Async.
-    pub(crate) async fn get_city(&self, id: u64) -> Result<ElasticCity, ErrorResponse> {
+    pub(crate) async fn get_city(&self, id: u64) -> HandlerResult<ElasticCity> {
         self.get_entity(id, CITY_INDEX, "City").await
     }
 
     /// Get [ElasticRegion] from Elasticsearch given its `id`. Async.
-    pub(crate) async fn get_region(&self, id: u64) -> Result<ElasticRegion, ErrorResponse> {
+    pub(crate) async fn get_region(&self, id: u64) -> HandlerResult<ElasticRegion> {
         static CACHE: Lazy<DashMap<u64, ElasticRegion>> = Lazy::new(DashMap::new);
 
         if let Some(record) = CACHE.get(&id) {
@@ -58,7 +58,7 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
     }
 
     /// Get a list of featured cities. Async.
-    pub(crate) async fn get_featured_cities(&self) -> Result<Vec<ElasticCity>, ErrorResponse> {
+    pub(crate) async fn get_featured_cities(&self) -> HandlerResult<Vec<ElasticCity>> {
         self.search_city(
             json!({
                 "query": {
@@ -82,7 +82,7 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
         query: &str,
         language: Language,
         country_iso: Option<&str>,
-    ) -> Result<Vec<ElasticCity>, ErrorResponse> {
+    ) -> HandlerResult<Vec<ElasticCity>> {
         let name_key = language.name_key();
 
         self.search_city(
@@ -153,7 +153,7 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
         id: u64,
         index_name: &str,
         entity_name: &str,
-    ) -> Result<T, ErrorResponse> {
+    ) -> HandlerResult<T> {
         let es = self.0.elasticsearch();
 
         let response = es
@@ -173,7 +173,7 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
         Ok(response_body)
     }
 
-    async fn search_city(&self, body: Value, size: i64) -> Result<Vec<ElasticCity>, ErrorResponse> {
+    async fn search_city(&self, body: Value, size: i64) -> HandlerResult<Vec<ElasticCity>> {
         let es = self.0.elasticsearch();
 
         let response = es

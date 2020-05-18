@@ -2,8 +2,11 @@
 
 use actix_web::{http::StatusCode, web::Json, ResponseError};
 
+/// Convenience alias for [Result] whose error is [ErrorResponse], to be used by supportive code.
+pub(crate) type HandlerResult<T> = Result<T, ErrorResponse>;
+
 /// Result type to be used by endpoints. Either OK [Json] or error [ErrorResponse].
-pub(crate) type JsonResult<T> = Result<Json<T>, ErrorResponse>;
+pub(crate) type JsonResult<T> = HandlerResult<Json<T>>;
 
 /// Possible error endpoint responses.
 #[derive(Debug, thiserror::Error)]

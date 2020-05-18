@@ -1,7 +1,7 @@
 //! Handlers for `/city/*` endpoints.
 
 use crate::{
-    response::{ErrorResponse, ErrorResponse::BadRequest, JsonResult},
+    response::{ErrorResponse::BadRequest, HandlerResult, JsonResult},
     services::locations_repo::{ElasticCity, Language, LocationsElasticRepository},
     stateful::elasticsearch::WithElastic,
     AppState,
@@ -111,7 +111,7 @@ impl ElasticCity {
         self,
         app: &T,
         language: Language,
-    ) -> Result<CityResponse, ErrorResponse> {
+    ) -> HandlerResult<CityResponse> {
         let locations_es_repo = LocationsElasticRepository(app);
         let es_region = locations_es_repo.get_region(self.regionId).await?;
 
