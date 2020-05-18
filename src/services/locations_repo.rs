@@ -6,8 +6,11 @@ use crate::{
 };
 use actix_web::http::StatusCode;
 use dashmap::DashMap;
-use elasticsearch::{GetParts::IndexTypeId, SearchParts::Index};
-use log::debug;
+use elasticsearch::{
+    http::response::Response as EsResponse, Error as EsError, GetParts::IndexTypeId,
+    SearchParts::Index,
+};
+use log::{debug, error};
 use once_cell::sync::Lazy;
 use serde::{de::DeserializeOwned, Deserialize};
 use serde_json::{json, Value};
@@ -166,7 +169,7 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
             return Err(NotFound(format!("{}#{} not found.", entity_name, id)));
         }
 
-        response.error_for_status_code_ref()?;
+        let response = self.logged_error_for_status(response).await?;
         let response_body = response.json::<T>().await?;
         debug!("Elasticsearch response body: {:?}.", response_body);
 
@@ -182,12 +185,25 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
             ._source_excludes(EXCLUDED_FIELDS)
             .size(size)
             .send()
-            .await?
-            .error_for_status_code()?;
+            .await?;
+        let response = self.logged_error_for_status(response).await?;
         let response_body = response.json::<SearchResponse<ElasticCity>>().await?;
         debug!("Elasticsearch response body: {:?}.", response_body);
 
         Ok(response_body.hits.hits.into_iter().map(|hit| hit._source).collect())
+    }
+
+    async fn logged_error_for_status(&self, response: EsResponse) -> Result<EsResponse, EsError> {
+        // This is somewhat convoluted to satisfy Rust lifetime rules. As response.text() takes
+        // ownership of the response, we in turn also need to take its ownership. We need to use
+        // error_for_status_code_ref() (rather than the non-_ref variant) for the same reason.
+        match response.error_for_status_code_ref() {
+            Ok(_) => Ok(response),
+            Err(e) => {
+                error!("Elasticsearch: {}: {}", e, response.text().await.unwrap_or_default());
+                Err(e)
+            }
+        }
     }
 }
 
