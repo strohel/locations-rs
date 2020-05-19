@@ -13,7 +13,7 @@ use elasticsearch::{
 use log::{debug, error};
 use once_cell::sync::Lazy;
 use serde::{de::DeserializeOwned, Deserialize};
-use serde_json::{json, Value};
+use serde_json::{json, Value as JsonValue};
 use std::{collections::HashMap, fmt};
 
 const REGION_INDEX: &str = "region";
@@ -176,7 +176,7 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
         Ok(response_body)
     }
 
-    async fn search_city(&self, body: Value, size: i64) -> HandlerResult<Vec<ElasticCity>> {
+    async fn search_city(&self, body: JsonValue, size: i64) -> HandlerResult<Vec<ElasticCity>> {
         let es = self.0.elasticsearch();
 
         let response = es
