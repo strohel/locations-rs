@@ -282,6 +282,7 @@ def assert_error_reply(res: requests.Response, expected_code):
     assert res.headers['content-type'].startswith('application/json'), res.headers
     json = res.json()
     assert 'message' in json, json
+    print(json['message'] + ': ', end='')
 
 
 @http_check
