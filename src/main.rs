@@ -58,6 +58,7 @@ async fn main() -> io::Result<()> {
             )
             .wrap(Logger::default())
             .route("/city/v1/get", get().to(handlers::city::get))
+            .route("/city/v1/closest", get().to(handlers::city::closest))
             .route("/city/v1/featured", get().to(handlers::city::featured))
             .route("/city/v1/search", get().to(handlers::city::search))
     })

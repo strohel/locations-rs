@@ -416,6 +416,86 @@ def http_check_search_kremze_diacritics_in_at(session: requests.Session):
     assert names == ['Kremže'], names
 
 
+@http_check
+def http_check_closest_invalid_no_lang(session: requests.Session):
+    """HTTP GET /city/v1/closest returns 400"""
+    res = session.get(URL_PREFIX + "/city/v1/closest")
+    assert_error_reply(res, 400)
+
+
+@http_check
+def http_check_closest_invalid_lat_only(session: requests.Session):
+    """HTTP GET /city/v1/closest?language=cs&lat=50 returns 400"""
+    res = session.get(URL_PREFIX + "/city/v1/closest?language=cs&lat=50")
+    assert_error_reply(res, 400)
+
+
+@http_check
+def http_check_closest_invalid_lon_only(session: requests.Session):
+    """HTTP GET /city/v1/closest?language=cs&lon=14 returns 400"""
+    res = session.get(URL_PREFIX + "/city/v1/closest?language=cs&lon=14")
+    assert_error_reply(res, 400)
+
+
+@http_check
+def http_check_closest_invlid_lat(session: requests.Session):
+    """HTTP GET /city/v1/closest?language=cs&lat=-90.3&lon=14 returns 400"""
+    res = session.get(URL_PREFIX + "/city/v1/closest?language=cs&lat=-90.3&lon=14")
+    assert_error_reply(res, 400)
+
+
+@http_check
+def http_check_closest_invalid_lon(session: requests.Session):
+    """HTTP GET /city/v1/closest?language=cs&lat=50&lon=192 returns 400"""
+    res = session.get(URL_PREFIX + "/city/v1/closest?language=cs&lat=50&lon=192")
+    assert_error_reply(res, 400)
+
+
+@http_check
+def http_check_closest_lat_lon_kozolupy(session: requests.Session):
+    """HTTP GET /city/v1/closest?language=cs&lat=49.84&lon=12.92 returns 200 Kozolupy"""
+    res = session.get(URL_PREFIX + "/city/v1/closest?language=cs&lat=49.84&lon=12.92")
+    assert_city_reply(res, 1125935959, "Horní Kozolupy", "Plzeňský kraj", "CZ", False)
+
+
+@http_check
+def http_check_closest_lat_lon_tricky_cernak(session: requests.Session):
+    """HTTP GET /city/v1/closest?language=pl&lat=50.107&lon=14.574 returns 200 Praha (even tho Hostavice are closer)"""
+    res = session.get(URL_PREFIX + "/city/v1/closest?language=pl&lat=50.107&lon=14.574")
+    assert_city_reply(res, 101748113, "Praga", "Praga", "CZ", True)
+
+
+@http_check
+def http_check_closest_geoip_praha(session: requests.Session):
+    """HTTP GET /city/v1/closest?language=de + 50,14 Fastly headers returns 200 Praha"""
+    headers = {
+        "Fastly-Geo-Lat": "50",
+        "Fastly-Geo-Lon": "14",
+    }
+    res = session.get(URL_PREFIX + "/city/v1/closest?language=de", headers=headers)
+    # This should be Praha, because GeoIP lookups use only featured cities.
+    assert_city_reply(res, 101748113, "Prag", "Prag", "CZ", True)
+
+
+@http_check
+def http_check_closest_lang_fallback(session: requests.Session):
+    """HTTP GET /city/v1/closest?language=de returns 200 Berlin (lang fallback)"""
+    res = session.get(URL_PREFIX + "/city/v1/closest?language=de")
+    assert_city_reply(res, 101909779, "Berlin", "Berlin", "DE", True)
+
+
+@http_check
+def http_check_closest_geoip_invalid(session: requests.Session):
+    """HTTP GET /city/v1/closest?language=pl + 0,0 Fastly headers returns 200 Warszava (lang fallback)"""
+    headers = {
+        "Fastly-Geo-Lat": "0",
+        "Fastly-Geo-Lon": "0",
+    }
+    res = session.get(URL_PREFIX + "/city/v1/closest?language=pl", headers=headers)
+    # This should be Bratislava due to lang fallback, because 0, 0 coords from Fastly are special.
+    assert_city_reply(res, 101752777, "Warszawa", "Mazowieckie", "PL", True)
+
+
 @dataclass
 class ContainerDied(Exception):
     connections: int = None

@@ -1,7 +1,10 @@
 //! Stateless Locations repository backed by Elasticsearch.
 
 use crate::{
-    response::{ErrorResponse::NotFound, HandlerResult},
+    response::{
+        ErrorResponse::{InternalServerError, NotFound},
+        HandlerResult,
+    },
     stateful::elasticsearch::WithElastic,
 };
 use actix_web::http::StatusCode;
@@ -12,9 +15,12 @@ use elasticsearch::{
 };
 use log::{debug, error};
 use once_cell::sync::Lazy;
-use serde::{de::DeserializeOwned, Deserialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
+use single::Single;
 use std::{collections::HashMap, fmt};
+use validator::Validate;
+use validator_derive::Validate; // redundant use due to https://github.com/Keats/validator/issues/78
 
 const REGION_INDEX: &str = "region";
 const CITY_INDEX: &str = "city";
@@ -34,6 +40,22 @@ pub(crate) enum Language {
 impl Language {
     pub(crate) fn name_key(self) -> String {
         format!("name.{:?}", self).to_lowercase()
+    }
+}
+
+/// Simple structure to represent a geo point, with latitude and longitude in decimal degrees.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, Validate)]
+pub(crate) struct Coordinates {
+    #[validate(range(min = -90.0, max = 90.0))]
+    pub(crate) lat: f64,
+    #[validate(range(min = -180.0, max = 180.0))]
+    pub(crate) lon: f64,
+}
+
+impl Coordinates {
+    /// Return [GeoJSON](http://geojson.org) representation of these coordinates as [serde_json::Value].
+    fn geojson(self) -> JsonValue {
+        json!({"type": "Point", "coordinates": [self.lon, self.lat]}) // Yes, it is [lon, lat].
     }
 }
 
@@ -149,6 +171,52 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
             10,
         )
         .await
+    }
+
+    /// Get a city closest to given geo `coords`, optionally filter by `is_featured`.
+    pub(crate) async fn get_closest_city(
+        &self,
+        coords: Coordinates,
+        is_featured: Option<bool>,
+    ) -> HandlerResult<ElasticCity> {
+        let query = json!({
+            "query": {
+                "bool": {
+                    "must": match is_featured {
+                        // Either include all featured cities,
+                        Some(is_featured) => json!({"term": {"isFeatured": is_featured}}),
+                        // or positively select *all* cities. This needs to be present, because bool
+                        // query apparently requires at least one positive match regardless of
+                        // `minimum_should_match`.
+                        None => json!({"match_all": {}}),
+                    },
+                    // Boost cities intersecting with `coords`.
+                    "should": {
+                        "geo_shape": {
+                            "geometry": {
+                                "shape": coords.geojson()
+                            },
+                            "boost": 1, // Elastic doesn't seem to add boost from geo query, fix it.
+                        }
+                    },
+                }
+            },
+            "sort": [
+                // First order by score. There will be just 2 distinct values, one for cities with
+                // point-in-polygon intersection and second for cities without it.
+                "_score",
+                // Otherwise order by distance of the city from coords.
+                {
+                    "_geo_distance": {
+                        "centroid": coords
+                    }
+                },
+            ]
+        });
+        let cities = self.search_city(query, 1).await?;
+
+        // Extract the single city from response. Both no and multiple cities are unexpected.
+        cities.into_iter().single().map_err(|e| InternalServerError(e.to_string()))
     }
 
     async fn get_entity<T: fmt::Debug + DeserializeOwned>(
