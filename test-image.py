@@ -11,6 +11,7 @@ Options:
   --no-bench        Do not run benchmarks.
   --log-threads     Log what processes and threads run in the container.
   --bench-url=<p>   Local url (the path part) to use as benchmark [default: /city/v1/get?id=101748111&language=cs].
+  --bench-out=<f>   Benchmark output file name. Defaults to `<docker-image>.checks[.bench].json`.
 """
 
 from collections import defaultdict
@@ -56,7 +57,7 @@ class Stats:
     requests_per_s: float
 
 
-def test_image(image: str, bench: bool, log_threads_enabled: bool, bench_url: str):
+def test_image(image: str, bench: bool, log_threads_enabled: bool, bench_url: str, bench_outfile: str = None):
     dockerc = docker.from_env()
 
     check_doesnt_start_with_env(dockerc, image, 'Does not start without env variables', {})
@@ -101,8 +102,10 @@ def test_image(image: str, bench: bool, log_threads_enabled: bool, bench_url: st
         for connection_count in connection_range:
             run_benchmark(container, connection_count, bench_url)
 
-    sane_name = re.sub('[^a-z0-9]+', '-', image)
-    save_results(f'{sane_name}.checks{".bench" if bench else ""}.json')
+    if not bench_outfile:
+        sane_name = re.sub('[^a-z0-9]+', '-', image)
+        bench_outfile = f'{sane_name}.checks{".bench" if bench else ""}.json'
+    save_results(bench_outfile)
 
 
 def check_doesnt_start_with_env(dockerc: docker.DockerClient, image, message, env):
@@ -625,4 +628,4 @@ if __name__ == '__main__':
         test_local()
     else:
         test_image(args['<docker-image>'], bench=not args['--no-bench'], log_threads_enabled=args['--log-threads'],
-                   bench_url=args['--bench-url'])
+                   bench_url=args['--bench-url'], bench_outfile=args['--bench-out'])
