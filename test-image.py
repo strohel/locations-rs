@@ -540,9 +540,10 @@ def collect_stats(container, message, connections=None, latency_90p_ms=None, req
 
 def run_benchmark(container, connection_count, bench_url):
     threads = min(connection_count, 4)  # count with 4 physical cores; wrk requires connections >= threads
-    duration_s = 10
-    process = run(['wrk', f'-c{connection_count}', f'-t{threads}', f'-d{duration_s}', '--latency', '--timeout=15',
-                   f'{URL_PREFIX}{bench_url}'], check=True, capture_output=True, text=True)
+    duration_s = 20
+    timeout_s = duration_s + 5
+    process = run(['wrk', f'-c{connection_count}', f'-t{threads}', f'-d{duration_s}', '--latency',
+                   f'--timeout={timeout_s}', f'{URL_PREFIX}{bench_url}'], check=True, capture_output=True, text=True)
     lines = process.stdout.splitlines()
 
     # Running 10s test @ http://127.0.0.1:8080/city/v1/get?id=101748111&language=cs
