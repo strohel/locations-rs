@@ -144,9 +144,9 @@ pub(crate) async fn closest(
 
     let es_city = if let Some(coords) = query.coordinates()? {
         coords.validate()?; // validate explicitly, we don't want to validate when loading from ES.
-        locations_es_repo.get_closest_city(coords, None).await?
+        locations_es_repo.get_city_by_coords(coords, None).await?
     } else if let Some(coords) = get_request_fastly_geo_coords(request.headers()) {
-        locations_es_repo.get_closest_city(coords, Some(true)).await?
+        locations_es_repo.get_city_by_coords(coords, Some(true)).await?
     } else {
         let city_id = match query.language {
             Language::CS => 101_748_113,   // Prague

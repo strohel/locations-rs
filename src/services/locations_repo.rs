@@ -174,49 +174,57 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
     }
 
     /// Get a city closest to given geo `coords`, optionally filter by `is_featured`.
-    pub(crate) async fn get_closest_city(
+    pub(crate) async fn get_city_by_coords(
+        &self,
+        coords: Coordinates,
+        is_featured: Option<bool>,
+    ) -> HandlerResult<ElasticCity> {
+        match self.get_intersecting_city(coords, is_featured).await? {
+            Some(city) => Ok(city),
+            None => self.get_closest_city(coords, is_featured).await,
+        }
+    }
+
+    async fn get_closest_city(
         &self,
         coords: Coordinates,
         is_featured: Option<bool>,
     ) -> HandlerResult<ElasticCity> {
         let query = json!({
-            "query": {
-                "bool": {
-                    "must": match is_featured {
-                        // Either include all featured cities,
-                        Some(is_featured) => json!({"term": {"isFeatured": is_featured}}),
-                        // or positively select *all* cities. This needs to be present, because bool
-                        // query apparently requires at least one positive match regardless of
-                        // `minimum_should_match`.
-                        None => json!({"match_all": {}}),
-                    },
-                    // Boost cities intersecting with `coords`.
-                    "should": {
-                        "geo_shape": {
-                            "geometry": {
-                                "shape": coords.geojson()
-                            },
-                            "boost": 1, // Elastic doesn't seem to add boost from geo query, fix it.
-                        }
-                    },
+            "query": match is_featured {
+                Some(is_featured) => json!({"term": {"isFeatured": is_featured}}),
+                None => json!({"match_all": {}}),
+            },
+            "sort": {
+                "_geo_distance": {
+                    "centroid": coords
                 }
             },
-            "sort": [
-                // First order by score. There will be just 2 distinct values, one for cities with
-                // point-in-polygon intersection and second for cities without it.
-                "_score",
-                // Otherwise order by distance of the city from coords.
-                {
-                    "_geo_distance": {
-                        "centroid": coords
-                    }
-                },
-            ]
         });
-        let cities = self.search_city(query, 1).await?;
 
+        let cities = self.search_city(query, 1).await?;
         // Extract the single city from response. Both no and multiple cities are unexpected.
         cities.into_iter().single().map_err(|e| InternalServerError(e.to_string()))
+    }
+
+    async fn get_intersecting_city(
+        &self,
+        coords: Coordinates,
+        is_featured: Option<bool>,
+    ) -> HandlerResult<Option<ElasticCity>> {
+        let geo_query = json!({"geo_shape": {"geometry": {"shape": coords.geojson()}}});
+        let query = json!({
+            "query": {
+                "bool": {
+                    "filter": match is_featured {
+                        Some(is_featured) => json!([geo_query, {"term": {"isFeatured": is_featured}}]),
+                        None => geo_query
+                    }
+                }
+            }
+        });
+
+        Ok(self.search_city(query, 1).await?.into_iter().next())
     }
 
     async fn get_entity<T: fmt::Debug + DeserializeOwned>(
