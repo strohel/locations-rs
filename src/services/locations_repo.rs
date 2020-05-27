@@ -16,7 +16,7 @@ use elasticsearch::{
 use log::{debug, error};
 use once_cell::sync::Lazy;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use serde_json::{json, Value as JsonValue};
+use serde_json::{json, to_string_pretty, Value as JsonValue};
 use single::Single;
 use std::{collections::HashMap, fmt};
 use validator::Validate;
@@ -237,7 +237,7 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
             return Err(NotFound(format!("{}#{} not found.", entity_name, id)));
         }
 
-        let response = self.logged_error_for_status(response).await?;
+        let response = self.logged_error_for_status(None, response).await?;
         let response_body = response.json::<T>().await?;
         debug!("Elasticsearch response body: {:?}.", response_body);
 
@@ -249,26 +249,32 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
 
         let response = es
             .search(Index(&[CITY_INDEX]))
-            .body(body)
+            .body(&body)
             ._source_excludes(EXCLUDED_FIELDS)
             .size(size)
             .send()
             .await?;
-        let response = self.logged_error_for_status(response).await?;
+        let response = self.logged_error_for_status(Some(&body), response).await?;
         let response_body = response.json::<SearchResponse<ElasticCity>>().await?;
         debug!("Elasticsearch response body: {:?}.", response_body);
 
         Ok(response_body.hits.hits.into_iter().map(|hit| hit._source).collect())
     }
 
-    async fn logged_error_for_status(&self, response: EsResponse) -> Result<EsResponse, EsError> {
+    async fn logged_error_for_status(
+        &self,
+        body: Option<&JsonValue>,
+        response: EsResponse,
+    ) -> Result<EsResponse, EsError> {
         // This is somewhat convoluted to satisfy Rust lifetime rules. As response.text() takes
         // ownership of the response, we in turn also need to take its ownership. We need to use
         // error_for_status_code_ref() (rather than the non-_ref variant) for the same reason.
         match response.error_for_status_code_ref() {
             Ok(_) => Ok(response),
             Err(e) => {
-                error!("Elasticsearch: {}: {}", e, response.text().await.unwrap_or_default());
+                let request = body.and_then(|val| to_string_pretty(val).ok()).unwrap_or_default();
+                let resp_text = response.text().await.unwrap_or_default();
+                error!("Elasticsearch: {}. Request:\n{}\nresponse: {}", e, request, resp_text);
                 Err(e)
             }
         }
