@@ -4,8 +4,14 @@
 GoOut Locations MVP Docker image tester and benchmark.
 
 Usage:
-  test-image.py <docker-image> [--no-bench] [--log-threads]
+  test-image.py <docker-image> [options]
   test-image.py --local
+
+Options:
+  --no-bench        Do not run benchmarks.
+  --log-threads     Log what processes and threads run in the container.
+  --bench-url=<p>   Local url (the path part) to use as benchmark [default: /city/v1/get?id=101748111&language=cs].
+  --bench-out=<f>   Benchmark output file name. Defaults to `<docker-image>.checks[.bench].json`.
 """
 
 from collections import defaultdict
@@ -51,7 +57,7 @@ class Stats:
     requests_per_s: float
 
 
-def test_image(image: str, bench: bool, log_threads_enabled: bool):
+def test_image(image: str, bench: bool, log_threads_enabled: bool, bench_url: str, bench_outfile: str = None):
     dockerc = docker.from_env()
 
     check_doesnt_start_with_env(dockerc, image, 'Does not start without env variables', {})
@@ -94,10 +100,12 @@ def test_image(image: str, bench: bool, log_threads_enabled: bool):
 
         connection_range = (1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048) if bench else ()
         for connection_count in connection_range:
-            run_benchmark(container, connection_count)
+            run_benchmark(container, connection_count, bench_url)
 
-    sane_name = re.sub('[^a-z0-9]+', '-', image)
-    save_results(f'{sane_name}.checks{".bench" if bench else ""}.json')
+    if not bench_outfile:
+        sane_name = re.sub('[^a-z0-9]+', '-', image)
+        bench_outfile = f'{sane_name}.checks{".bench" if bench else ""}.json'
+    save_results(bench_outfile)
 
 
 def check_doesnt_start_with_env(dockerc: docker.DockerClient, image, message, env):
@@ -530,11 +538,12 @@ def collect_stats(container, message, connections=None, latency_90p_ms=None, req
     STATS.append(stats)
 
 
-def run_benchmark(container, connection_count):
+def run_benchmark(container, connection_count, bench_url):
     threads = min(connection_count, 4)  # count with 4 physical cores; wrk requires connections >= threads
-    duration_s = 10
-    process = run(['wrk', f'-c{connection_count}', f'-t{threads}', f'-d{duration_s}', '--latency', '--timeout=15',
-                   f'{URL_PREFIX}/city/v1/get?id=101748111&language=cs'], check=True, capture_output=True, text=True)
+    duration_s = 20
+    timeout_s = duration_s + 5
+    process = run(['wrk', f'-c{connection_count}', f'-t{threads}', f'-d{duration_s}', '--latency',
+                   f'--timeout={timeout_s}', f'{URL_PREFIX}{bench_url}'], check=True, capture_output=True, text=True)
     lines = process.stdout.splitlines()
 
     # Running 10s test @ http://127.0.0.1:8080/city/v1/get?id=101748111&language=cs
@@ -619,4 +628,5 @@ if __name__ == '__main__':
     if args['--local']:
         test_local()
     else:
-        test_image(args['<docker-image>'], bench=not args['--no-bench'], log_threads_enabled=args['--log-threads'])
+        test_image(args['<docker-image>'], bench=not args['--no-bench'], log_threads_enabled=args['--log-threads'],
+                   bench_url=args['--bench-url'], bench_outfile=args['--bench-out'])
