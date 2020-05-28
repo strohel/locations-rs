@@ -24,6 +24,7 @@ def main(runs):
     }
     images = {
         '1rt-rs': 'https://gitlab.com/GoOutNet/Developers/Backend/locations-rs/-/blob/1rt-rs/src/services/locations_repo.rs#L176-220',
+        '2rt-rs': 'https://gitlab.com/GoOutNet/Developers/Backend/locations-rs/-/blob/2rt-rs/src/services/locations_repo.rs#L176-228',
         '2rt-kt': 'https://gitlab.com/GoOutNet/Backend/-/blob/archive/locations-2rt/Locations/src/main/kotlin/repository/ElasticCityAndRegionRepository.kt#L136-173',
         '1rt-kt': 'https://gitlab.com/GoOutNet/Backend/-/blob/archive/locations-1rt/Locations/src/main/kotlin/repository/ElasticCityAndRegionRepository.kt#L136-166',
     }
