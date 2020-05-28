@@ -923,6 +923,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "if_chain"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3360c7b59e5ffa2653671fb74b4741a5d343c03f331c0a4aeda42b5c2b0ec7d"
+
+[[package]]
 name = "indexmap"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1016,7 +1022,10 @@ dependencies = [
  "pretty_env_logger",
  "serde",
  "serde_json",
+ "single",
  "thiserror",
+ "validator",
+ "validator_derive",
 ]
 
 [[package]]
@@ -1625,6 +1634,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "single"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd5add732a1ab689845591a1b50339cf5310b563e08dc5813c65991f30369ea2"
+dependencies = [
+ "failure",
+]
+
+[[package]]
 name = "slab"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1900,6 +1918,36 @@ dependencies = [
  "idna",
  "matches",
  "percent-encoding",
+]
+
+[[package]]
+name = "validator"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ab5990ba09102e1ddc954d294f09b9ea00fc7831a5813bbe84bfdbcae44051e"
+dependencies = [
+ "idna",
+ "lazy_static",
+ "regex",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "url",
+]
+
+[[package]]
+name = "validator_derive"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e668e9cd05c5009b833833aa1147e5727b5396ea401f22dd1167618eed4a10c9"
+dependencies = [
+ "if_chain",
+ "lazy_static",
+ "proc-macro2",
+ "quote",
+ "regex",
+ "syn",
+ "validator",
 ]
 
 [[package]]

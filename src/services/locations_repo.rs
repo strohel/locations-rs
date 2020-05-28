@@ -1,21 +1,30 @@
 //! Stateless Locations repository backed by Elasticsearch.
 
 use crate::{
-    response::{ErrorResponse, ErrorResponse::NotFound},
+    response::{
+        ErrorResponse::{InternalServerError, NotFound},
+        HandlerResult,
+    },
     stateful::elasticsearch::WithElastic,
 };
 use actix_web::http::StatusCode;
 use dashmap::DashMap;
-use elasticsearch::{GetParts::IndexTypeId, SearchParts::Index};
-use log::debug;
+use elasticsearch::{
+    http::response::Response as EsResponse, Error as EsError, GetParts::IndexTypeId,
+    SearchParts::Index,
+};
+use log::{debug, error};
 use once_cell::sync::Lazy;
-use serde::{de::DeserializeOwned, Deserialize};
-use serde_json::{json, Value};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde_json::{json, to_string_pretty, Value as JsonValue};
+use single::Single;
 use std::{collections::HashMap, fmt};
+use validator::Validate;
+use validator_derive::Validate; // redundant use due to https://github.com/Keats/validator/issues/78
 
 const REGION_INDEX: &str = "region";
 const CITY_INDEX: &str = "city";
-const EXCLUDED_FIELDS: &[&str] = &["centroid", "geometry"];
+const EXCLUDED_FIELDS: &[&str] = &["centroid", "geometry", "population"];
 
 /// Language for response localization. Serialized as two-letter ISO 639-1 lowercase language code.
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -34,18 +43,34 @@ impl Language {
     }
 }
 
+/// Simple structure to represent a geo point, with latitude and longitude in decimal degrees.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, Validate)]
+pub(crate) struct Coordinates {
+    #[validate(range(min = -90.0, max = 90.0))]
+    pub(crate) lat: f64,
+    #[validate(range(min = -180.0, max = 180.0))]
+    pub(crate) lon: f64,
+}
+
+impl Coordinates {
+    /// Return [GeoJSON](http://geojson.org) representation of these coordinates as [serde_json::Value].
+    fn geojson(self) -> JsonValue {
+        json!({"type": "Point", "coordinates": [self.lon, self.lat]}) // Yes, it is [lon, lat].
+    }
+}
+
 /// Repository of Elastic City, Region Locations entities. Thin wrapper around app state.
 pub(crate) struct LocationsElasticRepository<'a, S: WithElastic>(pub(crate) &'a S);
 
 // Actual implementation of Locations repository on any app state that impleents [WithElasticsearch].
 impl<S: WithElastic> LocationsElasticRepository<'_, S> {
     /// Get [ElasticCity] from Elasticsearch given its `id`. Async.
-    pub(crate) async fn get_city(&self, id: u64) -> Result<ElasticCity, ErrorResponse> {
+    pub(crate) async fn get_city(&self, id: u64) -> HandlerResult<ElasticCity> {
         self.get_entity(id, CITY_INDEX, "City").await
     }
 
     /// Get [ElasticRegion] from Elasticsearch given its `id`. Async.
-    pub(crate) async fn get_region(&self, id: u64) -> Result<ElasticRegion, ErrorResponse> {
+    pub(crate) async fn get_region(&self, id: u64) -> HandlerResult<ElasticRegion> {
         static CACHE: Lazy<DashMap<u64, ElasticRegion>> = Lazy::new(DashMap::new);
 
         if let Some(record) = CACHE.get(&id) {
@@ -58,7 +83,7 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
     }
 
     /// Get a list of featured cities. Async.
-    pub(crate) async fn get_featured_cities(&self) -> Result<Vec<ElasticCity>, ErrorResponse> {
+    pub(crate) async fn get_featured_cities(&self) -> HandlerResult<Vec<ElasticCity>> {
         self.search_city(
             json!({
                 "query": {
@@ -82,7 +107,7 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
         query: &str,
         language: Language,
         country_iso: Option<&str>,
-    ) -> Result<Vec<ElasticCity>, ErrorResponse> {
+    ) -> HandlerResult<Vec<ElasticCity>> {
         let name_key = language.name_key();
 
         self.search_city(
@@ -148,12 +173,66 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
         .await
     }
 
+    /// Get a city closest to given geo `coords`, optionally filter by `is_featured`.
+    pub(crate) async fn get_city_by_coords(
+        &self,
+        coords: Coordinates,
+        is_featured: Option<bool>,
+    ) -> HandlerResult<ElasticCity> {
+        match self.get_intersecting_city(coords, is_featured).await? {
+            Some(city) => Ok(city),
+            None => self.get_closest_city(coords, is_featured).await,
+        }
+    }
+
+    async fn get_closest_city(
+        &self,
+        coords: Coordinates,
+        is_featured: Option<bool>,
+    ) -> HandlerResult<ElasticCity> {
+        let query = json!({
+            "query": match is_featured {
+                Some(is_featured) => json!({"term": {"isFeatured": is_featured}}),
+                None => json!({"match_all": {}}),
+            },
+            "sort": {
+                "_geo_distance": {
+                    "centroid": coords
+                }
+            },
+        });
+
+        let cities = self.search_city(query, 1).await?;
+        // Extract the single city from response. Both no and multiple cities are unexpected.
+        cities.into_iter().single().map_err(|e| InternalServerError(e.to_string()))
+    }
+
+    async fn get_intersecting_city(
+        &self,
+        coords: Coordinates,
+        is_featured: Option<bool>,
+    ) -> HandlerResult<Option<ElasticCity>> {
+        let geo_query = json!({"geo_shape": {"geometry": {"shape": coords.geojson()}}});
+        let query = json!({
+            "query": {
+                "bool": {
+                    "filter": match is_featured {
+                        Some(is_featured) => json!([geo_query, {"term": {"isFeatured": is_featured}}]),
+                        None => geo_query
+                    }
+                }
+            }
+        });
+
+        Ok(self.search_city(query, 1).await?.into_iter().next())
+    }
+
     async fn get_entity<T: fmt::Debug + DeserializeOwned>(
         &self,
         id: u64,
         index_name: &str,
         entity_name: &str,
-    ) -> Result<T, ErrorResponse> {
+    ) -> HandlerResult<T> {
         let es = self.0.elasticsearch();
 
         let response = es
@@ -166,28 +245,47 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
             return Err(NotFound(format!("{}#{} not found.", entity_name, id)));
         }
 
-        response.error_for_status_code_ref()?;
+        let response = self.logged_error_for_status(None, response).await?;
         let response_body = response.json::<T>().await?;
         debug!("Elasticsearch response body: {:?}.", response_body);
 
         Ok(response_body)
     }
 
-    async fn search_city(&self, body: Value, size: i64) -> Result<Vec<ElasticCity>, ErrorResponse> {
+    async fn search_city(&self, body: JsonValue, size: i64) -> HandlerResult<Vec<ElasticCity>> {
         let es = self.0.elasticsearch();
 
         let response = es
             .search(Index(&[CITY_INDEX]))
-            .body(body)
+            .body(&body)
             ._source_excludes(EXCLUDED_FIELDS)
             .size(size)
             .send()
-            .await?
-            .error_for_status_code()?;
+            .await?;
+        let response = self.logged_error_for_status(Some(&body), response).await?;
         let response_body = response.json::<SearchResponse<ElasticCity>>().await?;
         debug!("Elasticsearch response body: {:?}.", response_body);
 
         Ok(response_body.hits.hits.into_iter().map(|hit| hit._source).collect())
+    }
+
+    async fn logged_error_for_status(
+        &self,
+        body: Option<&JsonValue>,
+        response: EsResponse,
+    ) -> Result<EsResponse, EsError> {
+        // This is somewhat convoluted to satisfy Rust lifetime rules. As response.text() takes
+        // ownership of the response, we in turn also need to take its ownership. We need to use
+        // error_for_status_code_ref() (rather than the non-_ref variant) for the same reason.
+        match response.error_for_status_code_ref() {
+            Ok(_) => Ok(response),
+            Err(e) => {
+                let request = body.and_then(|val| to_string_pretty(val).ok()).unwrap_or_default();
+                let resp_text = response.text().await.unwrap_or_default();
+                error!("Elasticsearch: {}. Request:\n{}\nresponse: {}", e, request, resp_text);
+                Err(e)
+            }
+        }
     }
 }
 
@@ -199,7 +297,6 @@ pub(crate) struct ElasticCity {
     pub(crate) regionId: u64,
     pub(crate) isFeatured: bool,
     pub(crate) countryIso: String,
-    pub(crate) population: u32,
     pub(crate) timezone: String,
 
     #[serde(flatten)] // captures rest of fields, see https://serde.rs/attr-flatten.html

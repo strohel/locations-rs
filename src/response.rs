@@ -1,9 +1,13 @@
 //! OK and error response types to be used by endpoints.
 
 use actix_web::{http::StatusCode, web::Json, ResponseError};
+use validator::ValidationErrors;
+
+/// Convenience alias for [Result] whose error is [ErrorResponse], to be used by supportive code.
+pub(crate) type HandlerResult<T> = Result<T, ErrorResponse>;
 
 /// Result type to be used by endpoints. Either OK [Json] or error [ErrorResponse].
-pub(crate) type JsonResult<T> = Result<Json<T>, ErrorResponse>;
+pub(crate) type JsonResult<T> = HandlerResult<Json<T>>;
 
 /// Possible error endpoint responses.
 #[derive(Debug, thiserror::Error)]
@@ -34,5 +38,12 @@ impl ResponseError for ErrorResponse {
 impl From<elasticsearch::Error> for ErrorResponse {
     fn from(err: elasticsearch::Error) -> Self {
         Self::InternalServerError(format!("Elasticsearch error: {}", err))
+    }
+}
+
+/// Convert from [validator] errors into bad requests.
+impl From<ValidationErrors> for ErrorResponse {
+    fn from(err: ValidationErrors) -> Self {
+        Self::BadRequest(err.to_string())
     }
 }

@@ -1,15 +1,20 @@
 //! Handlers for `/city/*` endpoints.
 
 use crate::{
-    response::{ErrorResponse, ErrorResponse::BadRequest, JsonResult},
-    services::locations_repo::{ElasticCity, Language, LocationsElasticRepository},
+    response::{ErrorResponse::BadRequest, HandlerResult, JsonResult},
+    services::locations_repo::{Coordinates, ElasticCity, Language, LocationsElasticRepository},
     stateful::elasticsearch::WithElastic,
     AppState,
 };
-use actix_web::web::{Data, Json, Query};
+use actix_web::{
+    http::HeaderMap,
+    web::{Data, Json, Query},
+    HttpRequest,
+};
 use futures::{stream::FuturesOrdered, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use std::cmp::Reverse;
+use validator::Validate;
 
 /// Query for the `/city/v1/get` endpoint.
 #[derive(Deserialize)]
@@ -105,13 +110,76 @@ pub(crate) async fn search(
     es_cities_into_resp(app.get_ref(), es_cities, query.language).await
 }
 
+/// Query for the `/city/v1/closest` endpoint.
+#[derive(Deserialize)]
+pub(crate) struct ClosestQuery {
+    /// Latitude in decimal degrees with . as decimal separator.
+    lat: Option<f64>,
+    /// Longitude in decimal degrees with . as decimal separator.
+    lon: Option<f64>,
+    language: Language,
+}
+
+impl ClosestQuery {
+    /// Extract optional coordinates out of query, error if only one of them is given.
+    fn coordinates(&self) -> HandlerResult<Option<Coordinates>> {
+        match (self.lat, self.lon) {
+            (Some(lat), Some(lon)) => Ok(Some(Coordinates { lat, lon })),
+            (None, None) => Ok(None),
+            _ => Err(BadRequest("either both or none of `lat`, `lon` expected".to_string())),
+        }
+    }
+}
+
+/// The `/city/v1/closest` endpoint. HTTP request: [`ClosestQuery`], response: [`CityResponse`].
+///
+/// Returns a single city that is closest to the coordinates.
+/// If coordinates are not given we fallback to IP geo-location to find the closest featured city.
+pub(crate) async fn closest(
+    request: HttpRequest,
+    query: Query<ClosestQuery>,
+    app: Data<AppState>,
+) -> JsonResult<CityResponse> {
+    let locations_es_repo = LocationsElasticRepository(app.get_ref());
+
+    let es_city = if let Some(coords) = query.coordinates()? {
+        coords.validate()?; // validate explicitly, we don't want to validate when loading from ES.
+        locations_es_repo.get_city_by_coords(coords, None).await?
+    } else if let Some(coords) = get_request_fastly_geo_coords(request.headers()) {
+        locations_es_repo.get_city_by_coords(coords, Some(true)).await?
+    } else {
+        let city_id = match query.language {
+            Language::CS => 101_748_113,   // Prague
+            Language::DE => 101_909_779,   // Berlin
+            Language::EN => 101_748_113,   // also Prague
+            Language::PL => 101_752_777,   // Warsaw
+            Language::SK => 1_108_800_123, // Bratislava
+        };
+        locations_es_repo.get_city(city_id).await?
+    };
+
+    Ok(Json(es_city.into_resp(app.get_ref(), query.language).await?))
+}
+
+/// Get [Coordinates] out of Fastly Geo headers or [None] if they are not set or are invalid.
+fn get_request_fastly_geo_coords(headers: &HeaderMap) -> Option<Coordinates> {
+    let lat = headers.get("Fastly-Geo-Lat")?.to_str().ok()?;
+    let lon = headers.get("Fastly-Geo-Lon")?.to_str().ok()?;
+    let coords = Coordinates { lat: lat.parse().ok()?, lon: lon.parse().ok()? };
+
+    if coords.lat == 0.0 && coords.lon == 0.0 {
+        return None; // Fastly returns 0, 0 in case it cannot determine IP geolocation.
+    }
+    Some(coords)
+}
+
 impl ElasticCity {
     /// Transform ElasticCity into CityResponse, fetching the region.
     async fn into_resp<T: WithElastic>(
         self,
         app: &T,
         language: Language,
-    ) -> Result<CityResponse, ErrorResponse> {
+    ) -> HandlerResult<CityResponse> {
         let locations_es_repo = LocationsElasticRepository(app);
         let es_region = locations_es_repo.get_region(self.regionId).await?;
 

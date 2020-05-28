@@ -282,13 +282,14 @@ def assert_error_reply(res: requests.Response, expected_code):
     assert res.headers['content-type'].startswith('application/json'), res.headers
     json = res.json()
     assert 'message' in json, json
+    print(json['message'] + ': ', end='')
 
 
 @http_check
 def http_check_plzen_cs(session: requests.Session):
     """HTTP GET /city/v1/get?id=101748111&language=cs returns 200 and correct object"""
     res = session.get(URL_PREFIX + "/city/v1/get?id=101748111&language=cs")
-    assert_city_reply(res, 101748111, "Plzeň", "Plzeňský kraj", "CZ")  # TODO: expect isFeatured True
+    assert_city_reply(res, 101748111, "Plzeň", "Plzeňský kraj", "CZ", True)
 
 
 @http_check
@@ -302,7 +303,7 @@ def http_check_praha_en(session: requests.Session):
 def http_check_brno_de(session: requests.Session):
     """HTTP GET /city/v1/get?id=101748109&language=de returns 200 and correct object"""
     res = session.get(URL_PREFIX + "/city/v1/get?id=101748109&language=de")
-    assert_city_reply(res, 101748109, "Brünn", "Südmährische Region", "CZ")  # TODO: expect isFeatured True
+    assert_city_reply(res, 101748109, "Brünn", "Südmährische Region", "CZ", True)
 
 
 @http_check
@@ -327,10 +328,7 @@ def assert_city_payload(json, expected_id, expected_city, expected_region, expec
     assert json.keys() == {'countryIso', 'id', 'isFeatured', 'name', 'regionName'}, json
     assert json['countryIso'] == expected_country, (expected_country, json)
     assert json['id'] == expected_id, (expected_id, json)
-    if expected_is_featured:
-        assert json['isFeatured'] == expected_is_featured, json
-    else:
-        assert type(json['isFeatured']) == bool, json  # Not yet in Elastic, check just type
+    assert json['isFeatured'] == expected_is_featured, (expected_is_featured, json)
     assert json['name'] == expected_city, (expected_city, json)
     assert json['regionName'] == expected_region, (expected_region, json)
 
@@ -416,6 +414,86 @@ def http_check_search_kremze_diacritics_in_at(session: requests.Session):
     cities = assert_cities_reply(res, 0, 10)
     names = [c['name'] for c in cities]
     assert names == ['Kremže'], names
+
+
+@http_check
+def http_check_closest_invalid_no_lang(session: requests.Session):
+    """HTTP GET /city/v1/closest returns 400"""
+    res = session.get(URL_PREFIX + "/city/v1/closest")
+    assert_error_reply(res, 400)
+
+
+@http_check
+def http_check_closest_invalid_lat_only(session: requests.Session):
+    """HTTP GET /city/v1/closest?language=cs&lat=50 returns 400"""
+    res = session.get(URL_PREFIX + "/city/v1/closest?language=cs&lat=50")
+    assert_error_reply(res, 400)
+
+
+@http_check
+def http_check_closest_invalid_lon_only(session: requests.Session):
+    """HTTP GET /city/v1/closest?language=cs&lon=14 returns 400"""
+    res = session.get(URL_PREFIX + "/city/v1/closest?language=cs&lon=14")
+    assert_error_reply(res, 400)
+
+
+@http_check
+def http_check_closest_invlid_lat(session: requests.Session):
+    """HTTP GET /city/v1/closest?language=cs&lat=-90.3&lon=14 returns 400"""
+    res = session.get(URL_PREFIX + "/city/v1/closest?language=cs&lat=-90.3&lon=14")
+    assert_error_reply(res, 400)
+
+
+@http_check
+def http_check_closest_invalid_lon(session: requests.Session):
+    """HTTP GET /city/v1/closest?language=cs&lat=50&lon=192 returns 400"""
+    res = session.get(URL_PREFIX + "/city/v1/closest?language=cs&lat=50&lon=192")
+    assert_error_reply(res, 400)
+
+
+@http_check
+def http_check_closest_lat_lon_kozolupy(session: requests.Session):
+    """HTTP GET /city/v1/closest?language=cs&lat=49.84&lon=12.92 returns 200 Kozolupy"""
+    res = session.get(URL_PREFIX + "/city/v1/closest?language=cs&lat=49.84&lon=12.92")
+    assert_city_reply(res, 1125935959, "Horní Kozolupy", "Plzeňský kraj", "CZ", False)
+
+
+@http_check
+def http_check_closest_lat_lon_tricky_cernak(session: requests.Session):
+    """HTTP GET /city/v1/closest?language=pl&lat=50.107&lon=14.574 returns 200 Praha (even tho Hostavice are closer)"""
+    res = session.get(URL_PREFIX + "/city/v1/closest?language=pl&lat=50.107&lon=14.574")
+    assert_city_reply(res, 101748113, "Praga", "Praga", "CZ", True)
+
+
+@http_check
+def http_check_closest_geoip_praha(session: requests.Session):
+    """HTTP GET /city/v1/closest?language=de + 50,14 Fastly headers returns 200 Praha"""
+    headers = {
+        "Fastly-Geo-Lat": "50",
+        "Fastly-Geo-Lon": "14",
+    }
+    res = session.get(URL_PREFIX + "/city/v1/closest?language=de", headers=headers)
+    # This should be Praha, because GeoIP lookups use only featured cities.
+    assert_city_reply(res, 101748113, "Prag", "Prag", "CZ", True)
+
+
+@http_check
+def http_check_closest_lang_fallback(session: requests.Session):
+    """HTTP GET /city/v1/closest?language=de returns 200 Berlin (lang fallback)"""
+    res = session.get(URL_PREFIX + "/city/v1/closest?language=de")
+    assert_city_reply(res, 101909779, "Berlin", "Berlin", "DE", True)
+
+
+@http_check
+def http_check_closest_geoip_invalid(session: requests.Session):
+    """HTTP GET /city/v1/closest?language=pl + 0,0 Fastly headers returns 200 Warszava (lang fallback)"""
+    headers = {
+        "Fastly-Geo-Lat": "0",
+        "Fastly-Geo-Lon": "0",
+    }
+    res = session.get(URL_PREFIX + "/city/v1/closest?language=pl", headers=headers)
+    # This should be Bratislava due to lang fallback, because 0, 0 coords from Fastly are special.
+    assert_city_reply(res, 101752777, "Warszawa", "Mazowieckie", "PL", True)
 
 
 @dataclass
