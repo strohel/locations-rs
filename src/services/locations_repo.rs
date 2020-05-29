@@ -24,7 +24,7 @@ use validator_derive::Validate; // redundant use due to https://github.com/Keats
 
 const REGION_INDEX: &str = "region";
 const CITY_INDEX: &str = "city";
-const EXCLUDED_FIELDS: &[&str] = &["centroid", "geometry", "population"];
+const EXCLUDED_FIELDS: &[&str] = &["geometry", "population"];
 
 /// Language for response localization. Serialized as two-letter ISO 639-1 lowercase language code.
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -298,6 +298,7 @@ pub(crate) struct ElasticCity {
     pub(crate) isFeatured: bool,
     pub(crate) countryIso: String,
     pub(crate) timezone: String,
+    pub(crate) centroid: Coordinates,
 
     #[serde(flatten)] // captures rest of fields, see https://serde.rs/attr-flatten.html
     pub(crate) names: HashMap<String, String>,
@@ -309,6 +310,7 @@ pub(crate) struct ElasticCity {
 pub(crate) struct ElasticRegion {
     pub(crate) id: u64,
     pub(crate) countryIso: String,
+    pub(crate) centroid: Coordinates,
 
     #[serde(flatten)] // captures rest of fields, see https://serde.rs/attr-flatten.html
     pub(crate) names: HashMap<String, String>,
