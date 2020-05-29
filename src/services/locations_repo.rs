@@ -173,7 +173,7 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
         .await
     }
 
-    /// Get a city closest to given geo `coords`, optionally filter by `is_featured`.
+    /// Get city intersecting with or closest to `coords`, optionally filter by `is_featured`.
     pub(crate) async fn get_city_by_coords(
         &self,
         coords: Coordinates,
@@ -185,7 +185,8 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
         }
     }
 
-    async fn get_closest_city(
+    /// Get city closest to `coords` (by centroid distance), optionally filter by `is_featured`.
+    pub(crate) async fn get_closest_city(
         &self,
         coords: Coordinates,
         is_featured: Option<bool>,

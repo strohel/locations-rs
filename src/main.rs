@@ -57,6 +57,7 @@ async fn main() -> io::Result<()> {
                     .handler(StatusCode::INTERNAL_SERVER_ERROR, error::json_error),
             )
             .wrap(Logger::default())
+            .route("/city/v1/associatedFeatured", get().to(handlers::city::associated_featured))
             .route("/city/v1/get", get().to(handlers::city::get))
             .route("/city/v1/closest", get().to(handlers::city::closest))
             .route("/city/v1/featured", get().to(handlers::city::featured))
