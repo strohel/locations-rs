@@ -161,6 +161,31 @@ pub(crate) async fn closest(
     Ok(Json(es_city.into_resp(app.get_ref(), query.language).await?))
 }
 
+/// Query for the `/city/v1/associatedFeatured` endpoint.
+#[derive(Deserialize)]
+pub(crate) struct AssociatedFeaturedQuery {
+    /// Id of the city to get associated featured city for, positive integer.
+    id: u64,
+    language: Language,
+}
+
+/// The `/city/v1/associatedFeatured` endpoint. HTTP request: [`AssociatedFeaturedQuery`],
+/// response: [`CityResponse`].
+///
+/// For a given city id returns the closest featured city.
+pub(crate) async fn associated_featured(
+    query: Query<AssociatedFeaturedQuery>,
+    app: Data<AppState>,
+) -> JsonResult<CityResponse> {
+    let locations_es_repo = LocationsElasticRepository(app.get_ref());
+    let mut es_city = locations_es_repo.get_city(query.id).await?;
+    if !es_city.isFeatured {
+        es_city = locations_es_repo.get_closest_city(es_city.centroid, Some(true)).await?;
+    }
+
+    Ok(Json(es_city.into_resp(app.get_ref(), query.language).await?))
+}
+
 /// Get [Coordinates] out of Fastly Geo headers or [None] if they are not set or are invalid.
 fn get_request_fastly_geo_coords(headers: &HeaderMap) -> Option<Coordinates> {
     let lat = headers.get("Fastly-Geo-Lat")?.to_str().ok()?;

@@ -24,7 +24,7 @@ use validator_derive::Validate; // redundant use due to https://github.com/Keats
 
 const REGION_INDEX: &str = "region";
 const CITY_INDEX: &str = "city";
-const EXCLUDED_FIELDS: &[&str] = &["centroid", "geometry", "population"];
+const EXCLUDED_FIELDS: &[&str] = &["geometry", "population"];
 
 /// Language for response localization. Serialized as two-letter ISO 639-1 lowercase language code.
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -173,7 +173,7 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
         .await
     }
 
-    /// Get a city closest to given geo `coords`, optionally filter by `is_featured`.
+    /// Get city intersecting with or closest to `coords`, optionally filter by `is_featured`.
     pub(crate) async fn get_city_by_coords(
         &self,
         coords: Coordinates,
@@ -185,7 +185,8 @@ impl<S: WithElastic> LocationsElasticRepository<'_, S> {
         }
     }
 
-    async fn get_closest_city(
+    /// Get city closest to `coords` (by centroid distance), optionally filter by `is_featured`.
+    pub(crate) async fn get_closest_city(
         &self,
         coords: Coordinates,
         is_featured: Option<bool>,
@@ -298,6 +299,7 @@ pub(crate) struct ElasticCity {
     pub(crate) isFeatured: bool,
     pub(crate) countryIso: String,
     pub(crate) timezone: String,
+    pub(crate) centroid: Coordinates,
 
     #[serde(flatten)] // captures rest of fields, see https://serde.rs/attr-flatten.html
     pub(crate) names: HashMap<String, String>,
@@ -309,6 +311,7 @@ pub(crate) struct ElasticCity {
 pub(crate) struct ElasticRegion {
     pub(crate) id: u64,
     pub(crate) countryIso: String,
+    pub(crate) centroid: Coordinates,
 
     #[serde(flatten)] // captures rest of fields, see https://serde.rs/attr-flatten.html
     pub(crate) names: HashMap<String, String>,

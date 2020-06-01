@@ -504,6 +504,27 @@ def http_check_closest_geoip_invalid(session: requests.Session):
     assert_city_reply(res, 101752777, "Warszawa", "Mazowieckie", "PL", True)
 
 
+@http_check
+def http_check_associated_featured_graz(session: requests.Session):
+    """HTTP GET /city/v1/associatedFeatured?id=101748063&language=cs (Graz) returns 200 and Bratislava"""
+    res = session.get(URL_PREFIX + "/city/v1/associatedFeatured?id=101748063&language=cs")
+    assert_city_reply(res, 1108800123, "Bratislava", "Bratislavský kraj", "SK", True)
+
+
+@http_check
+def http_check_associated_featured_praha(session: requests.Session):
+    """HTTP GET /city/v1/associatedFeatured?id=101748113&language=pl (Praha) returns 200 and Praha itself"""
+    res = session.get(URL_PREFIX + "/city/v1/associatedFeatured?id=101748113&language=pl")
+    assert_city_reply(res, 101748113, "Praga", "Praga", "CZ", True)
+
+
+@http_check
+def http_check_associated_featured_invalid(session: requests.Session):
+    """HTTP GET /city/v1/associatedFeatured?id=123456&language=en (invalid id) returns 404"""
+    res = session.get(URL_PREFIX + "/city/v1/associatedFeatured?id=123456&language=en")
+    assert_error_reply(res, 404)
+
+
 @dataclass
 class ContainerDied(Exception):
     connections: int = None
