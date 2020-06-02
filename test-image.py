@@ -6,6 +6,11 @@ GoOut Locations MVP Docker image tester and benchmark.
 Usage:
   test-image.py <docker-image> [options]
   test-image.py --local
+  test-image.py --remote=<url-prefix>
+
+Modes:
+  --local           Do not use Docker, don't run bench, perform test of service running on http://127.0.0.1:8080.
+  --remote=<url>    Do not use Docker, don't run bench, perform test of service running on <url> prefix.
 
 Options:
   --no-bench        Do not run benchmarks.
@@ -647,6 +652,9 @@ def save_results(filename):
 if __name__ == '__main__':
     args = docopt(__doc__)
     if args['--local']:
+        test_local()
+    elif args['--remote']:
+        URL_PREFIX = args['--remote']
         test_local()
     else:
         test_image(args['<docker-image>'], bench=not args['--no-bench'], log_threads_enabled=args['--log-threads'],
