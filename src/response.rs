@@ -1,6 +1,7 @@
 //! OK and error response types to be used by endpoints.
 
 use actix_web::{http::StatusCode, web::Json, ResponseError};
+use paperclip::actix::api_v2_errors;
 use validator::ValidationErrors;
 
 /// Convenience alias for [Result] whose error is [ErrorResponse], to be used by supportive code.
@@ -10,6 +11,13 @@ pub(crate) type HandlerResult<T> = Result<T, ErrorResponse>;
 pub(crate) type JsonResult<T> = HandlerResult<Json<T>>;
 
 /// Possible error endpoint responses.
+#[api_v2_errors(
+    code = 400,
+    description = "Bad Request: client sent something wrong.",
+    code = 404,
+    description = "Not Found: this path or entity does not exist."
+    // code 500 intentionally not propagated to OpenAPI as it provides little value.
+)]
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum ErrorResponse {
     /// HTTP 400 Bad Request: client sent something wrong.
