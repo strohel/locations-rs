@@ -27,3 +27,17 @@ To play/develop:
   - Point your browser to `target/doc/locations-rs/index.html`
 - Do most of the above at once whenever any file changes using [cargo watch](https://crates.io/crates/cargo-watch):
   `cargo watch -x clippy -x test -x 'fmt -- --check' -x 'doc --no-deps' -x run`
+
+## Runtime Dependencies
+
+The locations service needs an Elasticsearch instance to operate. The instance should contain
+indices `city` and `region` filled with some data. The `GOOUT_ELASTIC_HOST` and `GOOUT_ELASTIC_PORT`
+(usually `9200`) environment variables need to point to the instance.
+
+This repository contains [`elasticsearch`](elasticsearch) directory with ready-made dockerized
+Elasticsearch instance pre-filled with data. Simply set `GOOUT_ELASTIC_HOST` to a host that runs the
+Docker image. Note that if both locations and Elasticsearch run in separate Docker containers, one
+needs to point locations to *host* address like `172.17.0.1` (`GOOUT_ELASTIC_HOST` of `127.0.0.1` or
+`0.0.0.0` won't work).
+
+The directory also contains mapping definitions of the 2 indices and example data.
