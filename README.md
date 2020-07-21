@@ -2,6 +2,11 @@
 
 Little proof-of-concept webservice in Rust, using [Actix](https://actix.rs/) web framework.
 
+The service implements [an API specification](api-spec.md) of one feature for
+[goout.net platform](https://goout.net/). It was shadow-developed alongside main implementation in
+Kotlin [http4k](https://www.http4k.org/) made by [@**goodhoko**](https://github.com/goodhoko) at
+[GoOut](https://www.startupjobs.cz/startup/goout-s-r-o) for comparison and joy.
+
 ## Build, Build Documentation, Run
 
 To play/develop:
