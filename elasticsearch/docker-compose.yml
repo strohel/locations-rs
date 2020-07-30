@@ -1,0 +1,9 @@
+version: '3.0'
+services:
+  locations-elasticsearch:
+    image: locations-elasticsearch
+    environment:
+      - discovery.type=single-node
+    ports:
+      - 9200:9200
+    build: .

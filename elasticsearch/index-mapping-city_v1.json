@@ -1,0 +1,182 @@
+{
+  "aliases": {
+    "city": {}
+  },
+  "mappings": {
+    "dynamic": "false",
+    "properties": {
+      "centroid": {
+        "type": "geo_point"
+      },
+      "countryIso": {
+        "type": "keyword"
+      },
+      "geometry": {
+        "type": "geo_shape"
+      },
+      "hasVenue": {
+        "type": "boolean"
+      },
+      "id": {
+        "type": "long"
+      },
+      "isFeatured": {
+        "type": "boolean"
+      },
+      "name": {
+        "properties": {
+          "all": {
+            "type": "text",
+            "fields": {
+              "autocomplete": {
+                "type": "search_as_you_type",
+                "analyzer": "standard",
+                "max_shingle_size": 3
+              },
+              "autocomplete_ascii": {
+                "type": "search_as_you_type",
+                "analyzer": "lower_ascii",
+                "max_shingle_size": 3
+              },
+              "raw": {
+                "type": "keyword"
+              }
+            }
+          },
+          "cs": {
+            "type": "text",
+            "fields": {
+              "autocomplete": {
+                "type": "search_as_you_type",
+                "analyzer": "standard",
+                "max_shingle_size": 3
+              },
+              "autocomplete_ascii": {
+                "type": "search_as_you_type",
+                "analyzer": "lower_ascii",
+                "max_shingle_size": 3
+              },
+              "raw": {
+                "type": "keyword"
+              }
+            },
+            "copy_to": [
+              "name.all"
+            ]
+          },
+          "de": {
+            "type": "text",
+            "fields": {
+              "autocomplete": {
+                "type": "search_as_you_type",
+                "analyzer": "standard",
+                "max_shingle_size": 3
+              },
+              "autocomplete_ascii": {
+                "type": "search_as_you_type",
+                "analyzer": "lower_ascii",
+                "max_shingle_size": 3
+              },
+              "raw": {
+                "type": "keyword"
+              }
+            },
+            "copy_to": [
+              "name.all"
+            ]
+          },
+          "en": {
+            "type": "text",
+            "fields": {
+              "autocomplete": {
+                "type": "search_as_you_type",
+                "analyzer": "standard",
+                "max_shingle_size": 3
+              },
+              "autocomplete_ascii": {
+                "type": "search_as_you_type",
+                "analyzer": "lower_ascii",
+                "max_shingle_size": 3
+              },
+              "raw": {
+                "type": "keyword"
+              }
+            },
+            "copy_to": [
+              "name.all"
+            ]
+          },
+          "pl": {
+            "type": "text",
+            "fields": {
+              "autocomplete": {
+                "type": "search_as_you_type",
+                "analyzer": "standard",
+                "max_shingle_size": 3
+              },
+              "autocomplete_ascii": {
+                "type": "search_as_you_type",
+                "analyzer": "lower_ascii",
+                "max_shingle_size": 3
+              },
+              "raw": {
+                "type": "keyword"
+              }
+            },
+            "copy_to": [
+              "name.all"
+            ]
+          },
+          "sk": {
+            "type": "text",
+            "fields": {
+              "autocomplete": {
+                "type": "search_as_you_type",
+                "analyzer": "standard",
+                "max_shingle_size": 3
+              },
+              "autocomplete_ascii": {
+                "type": "search_as_you_type",
+                "analyzer": "lower_ascii",
+                "max_shingle_size": 3
+              },
+              "raw": {
+                "type": "keyword"
+              }
+            },
+            "copy_to": [
+              "name.all"
+            ]
+          }
+        }
+      },
+      "population": {
+        "type": "long"
+      },
+      "regionId": {
+        "type": "long"
+      },
+      "timezone": {
+        "type": "keyword"
+      }
+    }
+  },
+  "settings": {
+    "index": {
+      "number_of_shards": "1",
+      "analysis": {
+        "analyzer": {
+          "lower_ascii": {
+            "filter": [
+              "lowercase",
+              "asciifolding"
+            ],
+            "type": "custom",
+            "tokenizer": "standard"
+          }
+        }
+      },
+      "number_of_replicas": "1"
+    }
+  }
+}
