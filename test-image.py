@@ -4,11 +4,12 @@
 GoOut Locations MVP Docker image tester and benchmark.
 
 Usage:
-  test-image.py <docker-image> [options]
-  test-image.py --local
-  test-image.py --remote=<url-prefix>
+  test-image.py <docker-image> [options] [--http-checks=<list,of,groups>]
+  test-image.py --local [--http-checks=<list,of,groups>]
+  test-image.py --remote=<url-prefix> [--http-checks=<list,of,groups>]
 
 Modes:
+  <docker-image>    Test a Docker image, also perform benchmark by default.
   --local           Do not use Docker, don't run bench, perform test of service running on http://127.0.0.1:8080.
   --remote=<url>    Do not use Docker, don't run bench, perform test of service running on <url> prefix.
 
@@ -17,6 +18,7 @@ Options:
   --log-threads     Log what processes and threads run in the container.
   --bench-url=<p>   Local url (the path part) to use as benchmark [default: /city/v1/get?id=101748111&language=cs].
   --bench-out=<f>   Benchmark output file name. Defaults to `<docker-image>.checks[.bench].json`.
+  --http-checks=<list,of,groups>    List of http check groups to execute [default: all].
 """
 
 from collections import defaultdict
@@ -39,7 +41,7 @@ except ImportError as e:
 
 
 URL_PREFIX = "http://127.0.0.1:8080"
-HTTP_CHECK_FUNCS = []
+HTTP_CHECK_FUNCS = defaultdict(list)  # mapping from check type to list of checks
 TOTAL_REQUESTS = 0
 TOTAL_REQUEST_ERRORS = 0
 STATS = []
@@ -62,7 +64,8 @@ class Stats:
     requests_per_s: float
 
 
-def test_image(image: str, bench: bool, log_threads_enabled: bool, bench_url: str, bench_outfile: str = None):
+def test_image(image: str, bench: bool, log_threads_enabled: bool, bench_url: str, groups: list,
+               bench_outfile: str = None):
     dockerc = docker.from_env()
 
     check_doesnt_start_with_env(dockerc, image, 'Does not start without env variables', {})
@@ -99,7 +102,7 @@ def test_image(image: str, bench: bool, log_threads_enabled: bool, bench_url: st
 
         check(logs_on_startup, container)
         check(logs_each_request, container, session)
-        perform_http_checks(session)
+        perform_http_checks(session, groups)
 
         collect_stats(container, "After HTTP checks")
 
@@ -223,67 +226,72 @@ def logs_each_request(container, session):
     assert path in out, f"got {len(out.splitlines())} lines of log: \n{out}"
 
 
-def test_local():
+def test_local(groups):
     with requests.Session() as session:
-        perform_http_checks(session)
+        perform_http_checks(session, groups)
 
 
-def perform_http_checks(session):
+def perform_http_checks(session, groups):
     global TOTAL_REQUESTS
-    for func in HTTP_CHECK_FUNCS:
-        check(func, session)
-        TOTAL_REQUESTS += 1
+    for group in groups:
+        if group not in HTTP_CHECK_FUNCS:
+            raise ValueError(f'HTTP check group {group} not known, available ones: {list(HTTP_CHECK_FUNCS.keys())}.')
+        for func in HTTP_CHECK_FUNCS[group]:
+            check(func, session)
+            TOTAL_REQUESTS += 1
 
 
-def http_check(func):
+def http_check(group):
     """Simple decorator to mark a function as an HTTP check."""
-    HTTP_CHECK_FUNCS.append(func)
-    return func
+    def wrapper(func):
+        HTTP_CHECK_FUNCS[group].append(func)
+        return func
+    return wrapper
 
 
-@http_check
+@http_check('get')
 def http_check_root(session: requests.Session):
     """HTTP GET / returns 200 or 404"""
     res = session.get(URL_PREFIX + "/")
     assert res.status_code in (200, 404), (res, res.text)
 
 
-@http_check
+@http_check('get')
 def http_check_nonexistent_path(session: requests.Session):
     """HTTP GET /fnhjkdniudsancyne returns 404"""
     res = session.get(URL_PREFIX + "/fnhjkdniudsancyne")
     assert res.status_code == 404, (res, res.text)
 
 
-@http_check
+@http_check('get')
 def http_check_no_params(session: requests.Session):
     """HTTP GET /city/v1/get returns 400 with error JSON with message"""
     res = session.get(URL_PREFIX + "/city/v1/get")
     assert_error_reply(res, 400)
 
 
-@http_check
+@http_check('get')
 def http_check_just_id_param(session: requests.Session):
     """HTTP GET /city/v1/get?id=123 returns 400 with error JSON with message"""
     res = session.get(URL_PREFIX + "/city/v1/get?id=123")
     assert_error_reply(res, 400)
 
 
-@http_check
+@http_check('get')
 def http_check_invalid_id(session: requests.Session):
     """HTTP GET /city/v1/get?id=blabla&language=cs returns 400 with error JSON with message"""
     res = session.get(URL_PREFIX + "/city/v1/get?id=blabla&language=cs")
     assert_error_reply(res, 400)
 
 
-@http_check
+@http_check('get')
 def http_check_just_language_param(session: requests.Session):
     """HTTP GET /city/v1/get?language=cs returns 400 with error JSON with message"""
     res = session.get(URL_PREFIX + "/city/v1/get?language=cs")
     assert_error_reply(res, 400)
 
 
-@http_check
+@http_check('get')
 def http_check_nonexistent_city_id(session: requests.Session):
     """HTTP GET /city/v1/get?id=123&language=cs returns 404 (this does not exist) with error JSON with message"""
     res = session.get(URL_PREFIX + "/city/v1/get?id=123&language=cs")
@@ -298,28 +306,28 @@ def assert_error_reply(res: requests.Response, expected_code):
     print(json['message'] + ': ', end='')
 
 
-@http_check
+@http_check('get')
 def http_check_plzen_cs(session: requests.Session):
     """HTTP GET /city/v1/get?id=101748111&language=cs returns 200 and correct object"""
     res = session.get(URL_PREFIX + "/city/v1/get?id=101748111&language=cs")
     assert_city_reply(res, 101748111, "Plzeň", "Plzeňský kraj", "CZ", True)
 
 
-@http_check
+@http_check('get')
 def http_check_praha_en(session: requests.Session):
     """HTTP GET /city/v1/get?id=101748113&language=cs returns 200 and correct object"""
     res = session.get(URL_PREFIX + "/city/v1/get?id=101748113&language=en")
     assert_city_reply(res, 101748113, "Prague", "Praha", "CZ", True)
 
 
-@http_check
+@http_check('get')
 def http_check_brno_de(session: requests.Session):
     """HTTP GET /city/v1/get?id=101748109&language=de returns 200 and correct object"""
     res = session.get(URL_PREFIX + "/city/v1/get?id=101748109&language=de")
     assert_city_reply(res, 101748109, "Brünn", "Südmährische Region", "CZ", True)
 
 
-@http_check
+@http_check('get')
 def http_check_graz_cs_extra_param(session: requests.Session):
     """HTTP GET /city/v1/get?id=101748063&language=cs&extra=paramShouldBeIgnored returns 200 and correct object"""
     res = session.get(URL_PREFIX + "/city/v1/get?id=101748063&language=cs&extra=paramShouldBeIgnored")
@@ -346,21 +354,21 @@ def assert_city_payload(json, expected_id, expected_city, expected_region, expec
     assert json['regionName'] == expected_region, (expected_region, json)
 
 
-@http_check
+@http_check('featured')
 def http_check_featured_no_lang(session: requests.Session):
     """HTTP GET /city/v1/featured returns 400 with error JSON with message"""
     res = session.get(URL_PREFIX + "/city/v1/featured")
     assert_error_reply(res, 400)
 
 
-@http_check
+@http_check('featured')
 def http_check_featured_invalid_lang(session: requests.Session):
     """HTTP GET /city/v1/featured?language=invalid returns 400 with error JSON with message"""
     res = session.get(URL_PREFIX + "/city/v1/featured?language=invalid")
     assert_error_reply(res, 400)
 
 
-@http_check
+@http_check('featured')
 def http_check_featured_cs(session: requests.Session):
     """HTTP GET /city/v1/featured?language=cs returns 200 and correct list of cities"""
     res = session.get(URL_PREFIX + "/city/v1/featured?language=cs")
@@ -371,7 +379,7 @@ def http_check_featured_cs(session: requests.Session):
     assert_city_payload(cities[0], 101748113, "Praha", "Hlavní město Praha", "CZ", True)
 
 
-@http_check
+@http_check('featured')
 def http_check_featured_sk(session: requests.Session):
     """HTTP GET /city/v1/featured?language=sk returns 200 and correct list of cities"""
     res = session.get(URL_PREFIX + "/city/v1/featured?language=sk")
@@ -393,7 +401,7 @@ def assert_cities_reply(res, min_len, max_len):
     return cities
 
 
-@http_check
+@http_check('search')
 def http_check_search_brunn(session: requests.Session):
     """HTTP GET /city/v1/search?language=de&query=Brno returns 200 and just Brünn"""
     res = session.get(URL_PREFIX + "/city/v1/search?language=de&query=Brno")
@@ -402,7 +410,7 @@ def http_check_search_brunn(session: requests.Session):
     assert names == ['Brünn'], names
 
 
-@http_check
+@http_check('search')
 def http_check_search_kremze_diacritics(session: requests.Session):
     """HTTP GET /city/v1/search?language=cs&query=křemže returns 200 and CZ city first"""
     res = session.get(URL_PREFIX + "/city/v1/search?language=cs&query=křemže")
@@ -411,7 +419,7 @@ def http_check_search_kremze_diacritics(session: requests.Session):
     assert names == ['Křemže', 'Kremže'], names  # assert that correct diacritics boost match
 
 
-@http_check
+@http_check('search')
 def http_check_search_kremze_ascii(session: requests.Session):
     """HTTP GET /city/v1/search?language=cs&query=kremze returns 200 and AT city first"""
     res = session.get(URL_PREFIX + "/city/v1/search?language=cs&query=kremze")
@@ -420,7 +428,7 @@ def http_check_search_kremze_ascii(session: requests.Session):
     assert names == ['Kremže', 'Křemže'], names  # assert that ascii-only match orders by population
 
 
-@http_check
+@http_check('search')
 def http_check_search_kremze_diacritics_in_at(session: requests.Session):
     """HTTP GET /city/v1/search?language=cs&query=křemže&countryIso=at returns 200 and AT city only"""
     res = session.get(URL_PREFIX + "/city/v1/search?language=cs&query=křemže&countryIso=AT")
@@ -429,56 +437,56 @@ def http_check_search_kremze_diacritics_in_at(session: requests.Session):
     assert names == ['Kremže'], names
 
 
-@http_check
+@http_check('closest')
 def http_check_closest_invalid_no_lang(session: requests.Session):
     """HTTP GET /city/v1/closest returns 400"""
     res = session.get(URL_PREFIX + "/city/v1/closest")
     assert_error_reply(res, 400)
 
 
-@http_check
+@http_check('closest')
 def http_check_closest_invalid_lat_only(session: requests.Session):
     """HTTP GET /city/v1/closest?language=cs&lat=50 returns 400"""
     res = session.get(URL_PREFIX + "/city/v1/closest?language=cs&lat=50")
     assert_error_reply(res, 400)
 
 
-@http_check
+@http_check('closest')
 def http_check_closest_invalid_lon_only(session: requests.Session):
     """HTTP GET /city/v1/closest?language=cs&lon=14 returns 400"""
     res = session.get(URL_PREFIX + "/city/v1/closest?language=cs&lon=14")
     assert_error_reply(res, 400)
 
 
-@http_check
-def http_check_closest_invlid_lat(session: requests.Session):
+@http_check('closest')
+def http_check_closest_invalid_lat(session: requests.Session):
     """HTTP GET /city/v1/closest?language=cs&lat=-90.3&lon=14 returns 400"""
     res = session.get(URL_PREFIX + "/city/v1/closest?language=cs&lat=-90.3&lon=14")
     assert_error_reply(res, 400)
 
 
-@http_check
+@http_check('closest')
 def http_check_closest_invalid_lon(session: requests.Session):
     """HTTP GET /city/v1/closest?language=cs&lat=50&lon=192 returns 400"""
     res = session.get(URL_PREFIX + "/city/v1/closest?language=cs&lat=50&lon=192")
     assert_error_reply(res, 400)
 
 
-@http_check
+@http_check('closest')
 def http_check_closest_lat_lon_kozolupy(session: requests.Session):
     """HTTP GET /city/v1/closest?language=cs&lat=49.84&lon=12.92 returns 200 Kozolupy"""
     res = session.get(URL_PREFIX + "/city/v1/closest?language=cs&lat=49.84&lon=12.92")
     assert_city_reply(res, 1125935959, "Horní Kozolupy", "Plzeňský kraj", "CZ", False)
 
 
-@http_check
+@http_check('closest')
 def http_check_closest_lat_lon_tricky_cernak(session: requests.Session):
     """HTTP GET /city/v1/closest?language=pl&lat=50.107&lon=14.574 returns 200 Praha (even tho Hostavice are closer)"""
     res = session.get(URL_PREFIX + "/city/v1/closest?language=pl&lat=50.107&lon=14.574")
     assert_city_reply(res, 101748113, "Praga", "Praga", "CZ", True)
 
 
-@http_check
+@http_check('closest')
 def http_check_closest_geoip_praha(session: requests.Session):
     """HTTP GET /city/v1/closest?language=de + 50,14 Fastly headers returns 200 Praha"""
     headers = {
@@ -490,14 +498,14 @@ def http_check_closest_geoip_praha(session: requests.Session):
     assert_city_reply(res, 101748113, "Prag", "Prag", "CZ", True)
 
 
-@http_check
+@http_check('closest')
 def http_check_closest_lang_fallback(session: requests.Session):
     """HTTP GET /city/v1/closest?language=de returns 200 Berlin (lang fallback)"""
     res = session.get(URL_PREFIX + "/city/v1/closest?language=de")
     assert_city_reply(res, 101909779, "Berlin", "Berlin", "DE", True)
 
 
-@http_check
+@http_check('closest')
 def http_check_closest_geoip_invalid(session: requests.Session):
     """HTTP GET /city/v1/closest?language=pl + 0,0 Fastly headers returns 200 Warszava (lang fallback)"""
     headers = {
@@ -509,21 +517,21 @@ def http_check_closest_geoip_invalid(session: requests.Session):
     assert_city_reply(res, 101752777, "Warszawa", "Mazowieckie", "PL", True)
 
 
-@http_check
+@http_check('associatedFeatured')
 def http_check_associated_featured_graz(session: requests.Session):
     """HTTP GET /city/v1/associatedFeatured?id=101748063&language=cs (Graz) returns 200 and Bratislava"""
     res = session.get(URL_PREFIX + "/city/v1/associatedFeatured?id=101748063&language=cs")
     assert_city_reply(res, 1108800123, "Bratislava", "Bratislavský kraj", "SK", True)
 
 
-@http_check
+@http_check('associatedFeatured')
 def http_check_associated_featured_praha(session: requests.Session):
     """HTTP GET /city/v1/associatedFeatured?id=101748113&language=pl (Praha) returns 200 and Praha itself"""
     res = session.get(URL_PREFIX + "/city/v1/associatedFeatured?id=101748113&language=pl")
     assert_city_reply(res, 101748113, "Praga", "Praga", "CZ", True)
 
 
-@http_check
+@http_check('associatedFeatured')
 def http_check_associated_featured_invalid(session: requests.Session):
     """HTTP GET /city/v1/associatedFeatured?id=123456&language=en (invalid id) returns 404"""
     res = session.get(URL_PREFIX + "/city/v1/associatedFeatured?id=123456&language=en")
@@ -651,11 +659,16 @@ def save_results(filename):
 
 if __name__ == '__main__':
     args = docopt(__doc__)
+    if args['--http-checks'] == 'all':
+        groups = list(HTTP_CHECK_FUNCS.keys())
+    else:
+        groups = args['--http-checks'].split(',')
+
     if args['--local']:
-        test_local()
+        test_local(groups)
     elif args['--remote']:
         URL_PREFIX = args['--remote']
-        test_local()
+        test_local(groups)
     else:
         test_image(args['<docker-image>'], bench=not args['--no-bench'], log_threads_enabled=args['--log-threads'],
-                   bench_url=args['--bench-url'], bench_outfile=args['--bench-out'])
+                   bench_url=args['--bench-url'], groups=groups, bench_outfile=args['--bench-out'])
