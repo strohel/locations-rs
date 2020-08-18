@@ -300,7 +300,7 @@ def http_check_nonexistent_city_id(session: requests.Session):
 
 def assert_error_reply(res: requests.Response, expected_code):
     assert res.status_code == expected_code, (expected_code, res, res.text)
-    assert res.headers['content-type'].startswith('application/json'), res.headers
+    assert res.headers.get('content-type', '').startswith('application/json'), res.headers
     json = res.json()
     assert 'message' in json, json
     print(json['message'] + ': ', end='')
