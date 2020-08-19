@@ -7,6 +7,13 @@ The service implements [an API specification](api-spec.md) of one feature for
 Kotlin [http4k](https://www.http4k.org/) made by [@**goodhoko**](https://github.com/goodhoko) at
 [GoOut](https://www.startupjobs.cz/startup/goout-s-r-o) for comparison and joy.
 
+## Alternatives
+
+Multiple implementations of this service exist in different frameworks, languages for comparison.
+
+- [locations-kt-http4k](https://gitlab.com/gooutopensource/locations-kt-http4k) in Kotlin http4k; complete,
+- [locations-kt-ktor](https://gitlab.com/gooutopensource/locations-kt-ktor) in Kotlin Ktor; less complete,
+
 ## Build, Build Documentation, Run
 
 To play/develop:
