@@ -139,12 +139,27 @@ def requests_vs_connections_figure(names, suites, config):
 
 
 @figure
-def latency_vs_connections_figure(names, suites, config):
+def latency_vs_connections_50_figure(names, suites, config):
+    return latency_vs_connections_figure(50, names, suites, config)
+
+
+@figure
+def latency_vs_connections_90_figure(names, suites, config):
+    return latency_vs_connections_figure(90, names, suites, config)
+
+
+@figure
+def latency_vs_connections_99_figure(names, suites, config):
+    return latency_vs_connections_figure(99, names, suites, config)
+
+
+def latency_vs_connections_figure(percentile, names, suites, config):
     chart = pygal.Line(config, logarithmic=True)
-    chart.title = '90th Percentile Latency vs. Connections (ms)'
+    chart.title = f'{percentile}th Percentile Latency vs. Connections (ms)'
     connections_x_labels(chart, suites, skip=2)
     for name in names:
-        chart.add(name, [s['latency_90p_ms'] if s['requests_new'] else None for s in suites[name]['stats'][2:]])
+        chart.add(name, [s[f'latency_{percentile}p_ms'] if s['requests_new'] else None
+                         for s in suites[name]['stats'][2:]])
     return chart
 
 

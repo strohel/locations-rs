@@ -60,7 +60,9 @@ class Stats:
     request_errors_total: int
     request_errors_new: int
     connections: int
+    latency_50p_ms: float
     latency_90p_ms: float
+    latency_99p_ms: float
     requests_per_s: float
 
 
@@ -68,9 +70,9 @@ def test_image(image: str, bench: bool, log_threads_enabled: bool, bench_url: st
                bench_outfile: str = None):
     dockerc = docker.from_env()
 
-    check_doesnt_start_with_env(dockerc, image, 'Does not start without env variables', {})
-    check_doesnt_start_with_env(dockerc, image, 'Does not start with invalid ES address',
-                                {'GOOUT_ELASTIC_HOST': '127.0.0.1', 'GOOUT_ELASTIC_PORT': '56789'})
+    # check_doesnt_start_with_env(dockerc, image, 'Does not start without env variables', {})
+    # check_doesnt_start_with_env(dockerc, image, 'Does not start with invalid ES address',
+    #                             {'GOOUT_ELASTIC_HOST': '127.0.0.1', 'GOOUT_ELASTIC_PORT': '56789'})
 
     session = requests.Session()
 
@@ -106,9 +108,12 @@ def test_image(image: str, bench: bool, log_threads_enabled: bool, bench_url: st
 
         collect_stats(container, "After HTTP checks")
 
-        connection_range = (1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048) if bench else ()
+        connection_range = (1, 1, 1, 1, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048) if bench else ()
         for connection_count in connection_range:
             run_benchmark(container, connection_count, bench_url)
+
+        # Do one last HTTP call to ensure container is still alive and ready
+        http_check_plzen_cs(session)
 
     if not bench_outfile:
         sane_name = re.sub('[^a-z0-9]+', '-', image)
@@ -158,9 +163,9 @@ def log_threads(dockerc, session, run_opts, message, cpuset_cpus, soft_cpus):
 
 @contextmanager
 def run_container(dockerc: docker.DockerClient, run_opts):
-    # Give only 1s of CPU-core-time per each wall clock second. (can still run in parallel). Lets the rest of the
+    # Give only 1.5s of CPU-core-time per each wall clock second. (can still run in parallel). Lets the rest of the
     # system breathe and better simulates Kubernetes environment (which uses the same method of capping CPU).
-    nano_cpus = 10**9
+    nano_cpus = int(1.5 * 10**9)
     cpuset_cpus = "0-3"  # Assign 4 logical CPUs to the container to simulate our real cluster.
 
     container = dockerc.containers.run(cpuset_cpus=cpuset_cpus, nano_cpus=nano_cpus, **run_opts)
@@ -543,7 +548,8 @@ class ContainerDied(Exception):
     connections: int = None
 
 
-def collect_stats(container, message, connections=None, latency_90p_ms=None, requests_per_s=None):
+def collect_stats(container, message, connections=None, latency_50p_ms=None, latency_90p_ms=None, latency_99p_ms=None,
+                  requests_per_s=None):
     try:
         docker_stats = container.stats(stream=False)
     except docker.errors.NotFound as e:
@@ -560,7 +566,9 @@ def collect_stats(container, message, connections=None, latency_90p_ms=None, req
         request_errors_total=TOTAL_REQUEST_ERRORS,
         request_errors_new=None,
         connections=connections,
+        latency_50p_ms=latency_50p_ms,
         latency_90p_ms=latency_90p_ms,
+        latency_99p_ms=latency_99p_ms,
         requests_per_s=requests_per_s,
     )
     if STATS:
@@ -574,7 +582,7 @@ def collect_stats(container, message, connections=None, latency_90p_ms=None, req
 
 def run_benchmark(container, connection_count, bench_url):
     threads = min(connection_count, 4)  # count with 4 physical cores; wrk requires connections >= threads
-    duration_s = 20
+    duration_s = 10
     timeout_s = duration_s + 5
     process = run(['wrk', f'-c{connection_count}', f'-t{threads}', f'-d{duration_s}', '--latency',
                    f'--timeout={timeout_s}', f'{URL_PREFIX}{bench_url}'], check=True, capture_output=True, text=True)
@@ -604,12 +612,18 @@ def run_benchmark(container, connection_count, bench_url):
         else:
             raise ValueError(f'Pattern "{pattern}" not found in lines:' + ''.join(f'\n"{l}"' for l in lines))
 
-    matches = match_line(' +90% +([0-9.]+)([mu]?)s *')
-    latency_90p_ms = float(matches.group(1))
-    if matches.group(2) == '':
-        latency_90p_ms *= 1000  # if the value is in seconds, multiply to get msecs
-    if matches.group(2) == 'u':
-        latency_90p_ms /= 1000  # if the value is in microseconds, divide to get msecs
+    def match_latency(percentile):
+        matches = match_line(f' +{percentile}% +([0-9.]+)([mu]?)s *')
+        latency_ms = float(matches.group(1))
+        if matches.group(2) == '':
+            latency_ms *= 1000  # if the value is in seconds, multiply to get msecs
+        if matches.group(2) == 'u':
+            latency_ms /= 1000  # if the value is in microseconds, divide to get msecs
+        return latency_ms
+
+    latency_50p_ms = match_latency(50)
+    latency_90p_ms = match_latency(90)
+    latency_99p_ms = match_latency(99)
 
     requests_new = int(match_line(' +([0-9]+) requests in .* read').group(1))
 
@@ -635,7 +649,7 @@ def run_benchmark(container, connection_count, bench_url):
     TOTAL_REQUEST_ERRORS += request_errors_new + other_errors_new
 
     requests_per_s = requests_new / duration_s
-    collect_stats(container, 'Bench', connection_count, latency_90p_ms, requests_per_s)
+    collect_stats(container, 'Bench', connection_count, latency_50p_ms, latency_90p_ms, latency_99p_ms, requests_per_s)
 
 
 def run(program_args, **kwargs):
