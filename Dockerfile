@@ -1,4 +1,4 @@
-# Build image; Elasticsearch client currently requires nightly Rust.
+# Build image.
 FROM rust:1.45 as build
 
 RUN rustc --version

@@ -12,10 +12,6 @@ Kotlin [http4k](https://www.http4k.org/) made by [@**goodhoko**](https://github.
 To play/develop:
 
 1. [Install Rust locally](https://www.rust-lang.org/tools/install), preferrably using [rustup](https://rustup.rs/).
-   - Due to alpha Elasticsearch client, *nightly* Rust compiler is needed. This is how to
-     [install it with `rustup`](https://github.com/rust-lang/rustup/blob/master/README.md#working-with-nightly-rust):
-     - `rustup toolchain install nightly`
-     - `rustup default nightly`
 2. Use [Cargo](https://doc.rust-lang.org/cargo/) to do all development work:
 
 - Build: `cargo build`
