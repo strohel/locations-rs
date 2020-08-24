@@ -40,7 +40,7 @@ except ImportError as e:
     raise Exception('Some external dependencies not found, install them using: pip install -r requirements.txt') from e
 
 
-URL_PREFIX = "http://127.0.0.1:8080"
+URL_PREFIX = "http://localhost:8080"
 HTTP_CHECK_FUNCS = defaultdict(list)  # mapping from check type to list of checks
 TOTAL_REQUESTS = 0
 TOTAL_REQUEST_ERRORS = 0
