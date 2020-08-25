@@ -21,14 +21,12 @@ IMAGE_BASE = 'gcr.io/strohel-goout-calendar/locations'
 
 def main(runs):
     tags = (
-        'kt-http4k-apache',
         'kt-http4k-apache-upd',
-        'kt-http4k-jetty',
+        'kt-http4k-apache4',
+        'kt-http4k-apache4-q100',
+        'kt-http4k-sun',
         'kt-http4k-jetty-upd',
-        'kt-http4k-netty',
-        'kt-http4k-netty-upd',
         'kt-http4k-netty-updfix',
-        'kt-http4k-undertow',
         'kt-http4k-undertow-upd',
     )
 
