@@ -11,11 +11,13 @@ Currently processes all *.checks.bench.json files in the current dir.
 
 import json
 from pathlib import Path
+from string import digits
 
 try:
     from docopt import docopt
     from marko.ext.gfm import gfm
     import pygal
+    from pygal.style import Style
 except ImportError as e:
     raise Exception('Some external dependencies not found, install them using: pip install -r requirements.txt') from e
 
@@ -29,14 +31,7 @@ def render():
         with open(filepath) as fp:
             suites[name] = json.load(fp)
 
-    def sort_key(name):
-        hardcoded_sort = ('vertx', 'ktor', 'http4k', 'rs')
-        for i, hardcoded_name in enumerate(hardcoded_sort):
-            if name.startswith(f'locations-{hardcoded_name}'):
-                return i, name
-        return len(hardcoded_sort), name
-
-    names = sorted(suites.keys(), key=sort_key)
+    names = sorted(suites.keys())
 
     figure_filenames = render_figures(names, suites)
 
@@ -97,7 +92,13 @@ def figure(func):
 
 def render_figures(names, suites):
     filenames = []
-    config = pygal.Config(legend_at_bottom=True)
+
+    # draw "sibling" suites using the same color
+    basenames = [name.rstrip(digits) for name in names]
+    uniq_basenames = sorted(set(basenames))
+    style = Style(colors=[Style.colors[uniq_basenames.index(basename)] for basename in basenames])
+
+    config = pygal.Config(legend_at_bottom=True, style=style)
 
     for figure_func in FIGURE_FUNCS:
         chart = figure_func(names, suites, config)
@@ -139,12 +140,27 @@ def requests_vs_connections_figure(names, suites, config):
 
 
 @figure
-def latency_vs_connections_figure(names, suites, config):
+def latency_vs_connections_50_figure(names, suites, config):
+    return latency_vs_connections_figure(50, names, suites, config)
+
+
+@figure
+def latency_vs_connections_90_figure(names, suites, config):
+    return latency_vs_connections_figure(90, names, suites, config)
+
+
+@figure
+def latency_vs_connections_99_figure(names, suites, config):
+    return latency_vs_connections_figure(99, names, suites, config)
+
+
+def latency_vs_connections_figure(percentile, names, suites, config):
     chart = pygal.Line(config, logarithmic=True)
-    chart.title = '90th Percentile Latency vs. Connections (ms)'
+    chart.title = f'{percentile}th Percentile Latency vs. Connections (ms)'
     connections_x_labels(chart, suites, skip=2)
     for name in names:
-        chart.add(name, [s['latency_90p_ms'] if s['requests_new'] else None for s in suites[name]['stats'][2:]])
+        chart.add(name, [s[f'latency_{percentile}p_ms'] if s['requests_new'] else None
+                         for s in suites[name]['stats'][2:]])
     return chart
 
 

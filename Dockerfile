@@ -1,4 +1,4 @@
-# Build image; Elasticsearch client currently requires nightly Rust.
+# Build image.
 FROM rust:1.45 as build
 
 RUN rustc --version
@@ -7,7 +7,7 @@ RUN rustc --version
 COPY ./ ./
 
 # Compile in release mode and put the binary into /install/.
-RUN RUSTFLAGS="-C target-cpu=native" cargo install --path . --root /install
+RUN RUSTFLAGS="-C target-cpu=skylake" cargo install --path . --root /install
 
 # Production image. Shrinking possibility: https://alexbrand.dev/post/how-to-package-rust-applications-into-minimal-docker-containers/
 FROM bitnami/minideb:buster
