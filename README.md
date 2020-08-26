@@ -52,4 +52,4 @@ The directory also contains mapping definitions of the 2 indices and example dat
 
 ## License
 
-This project is licensed under [GNU Affero General Public License, version 3])(https://www.gnu.org/licenses/agpl-3.0.html).
+This project is licensed under [GNU Affero General Public License, version 3](https://www.gnu.org/licenses/agpl-3.0.html).
