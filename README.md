@@ -49,3 +49,7 @@ needs to point locations to *host* address like `172.17.0.1` (`GOOUT_ELASTIC_HOS
 `0.0.0.0` won't work).
 
 The directory also contains mapping definitions of the 2 indices and example data.
+
+## License
+
+This project is licensed under [GNU Affero General Public License, version 3])(https://www.gnu.org/licenses/agpl-3.0.html).
