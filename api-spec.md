@@ -1,5 +1,14 @@
 # Locations API specification
-This document describes endpoints, parameters and responses for the Locations feature.
+This document describes endpoints, parameters and responses for the Locations service.
+
+## Overview
+
+The service is backend by 2 document types, `city` and `region`, stored in Elasticsearch indices.
+A `region` mainly has a name (localised into various languages),
+and a geometry describing its physical shape on the Earth in [GeoJSON](https://geojson.org/).
+A `city` has the same plus its centroid (point on the Earth), id of a `region` it belongs to, and population.
+The task of the service is to retrieve a city/list of cities (by id, closest to given lat-lon coordinates, ...),
+filling in associated region name and selecting proper translation.
 
 ## Response Types
 Base for all responses is the `CityResponse` entity. Kotlin and typescript definitions and json example follow.
