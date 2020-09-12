@@ -12,13 +12,12 @@ use actix_web::{
     HttpRequest,
 };
 use futures::{stream::FuturesOrdered, TryStreamExt};
-use paperclip::actix::{api_v2_operation, Apiv2Schema};
 use serde::{Deserialize, Serialize};
 use std::cmp::Reverse;
 use validator::Validate;
 
 /// Query for the `/city/v1/get` endpoint.
-#[derive(Apiv2Schema, Deserialize)]
+#[derive(Deserialize)]
 pub(crate) struct CityQuery {
     /// Id of the city to get, positive integer.
     id: u64,
@@ -27,7 +26,7 @@ pub(crate) struct CityQuery {
 
 /// `City` API entity. All city endpoints respond with this payload (or a composition of it).
 #[allow(non_snake_case)]
-#[derive(Apiv2Schema, Serialize)]
+#[derive(Serialize)]
 pub(crate) struct CityResponse {
     /// Id of the city, e.g. `123`.
     id: u64,
@@ -44,7 +43,6 @@ pub(crate) struct CityResponse {
 /// The `/city/v1/get` endpoint. HTTP request: [`CityQuery`], response: [`CityResponse`].
 ///
 /// Get city of given ID localized to given language.
-#[api_v2_operation]
 pub(crate) async fn get(query: Query<CityQuery>, app: Data<AppState>) -> JsonResult<CityResponse> {
     let locations_es_repo = LocationsElasticRepository(app.get_ref());
     let es_city = locations_es_repo.get_city(query.id).await?;
@@ -53,13 +51,13 @@ pub(crate) async fn get(query: Query<CityQuery>, app: Data<AppState>) -> JsonRes
 }
 
 /// Query for the `/city/v1/featured` endpoint.
-#[derive(Apiv2Schema, Deserialize)]
+#[derive(Deserialize)]
 pub(crate) struct FeaturedQuery {
     language: Language,
 }
 
 /// A list of `City` API entities.
-#[derive(Apiv2Schema, Serialize)]
+#[derive(Serialize)]
 pub(crate) struct MultiCityResponse {
     cities: Vec<CityResponse>,
 }
@@ -67,7 +65,6 @@ pub(crate) struct MultiCityResponse {
 /// The `/city/v1/featured` endpoint. HTTP request: [`FeaturedQuery`], response: [`MultiCityResponse`].
 ///
 /// Returns a list of all featured cities.
-#[api_v2_operation]
 pub(crate) async fn featured(
     query: Query<FeaturedQuery>,
     app: Data<AppState>,
@@ -89,7 +86,7 @@ pub(crate) async fn featured(
 
 /// Query for the `/city/v1/search` endpoint.
 #[allow(non_snake_case)]
-#[derive(Apiv2Schema, Deserialize)]
+#[derive(Deserialize)]
 pub(crate) struct SearchQuery {
     /// The search query.
     query: String,
@@ -102,7 +99,6 @@ pub(crate) struct SearchQuery {
 ///
 /// Returns list of cities matching the 'query' parameter.
 /// The response is limited to 10 cities and no pagination is provided.
-#[api_v2_operation]
 pub(crate) async fn search(
     query: Query<SearchQuery>,
     app: Data<AppState>,
@@ -115,7 +111,7 @@ pub(crate) async fn search(
 }
 
 /// Query for the `/city/v1/closest` endpoint.
-#[derive(Apiv2Schema, Deserialize)]
+#[derive(Deserialize)]
 pub(crate) struct ClosestQuery {
     /// Latitude in decimal degrees with . as decimal separator.
     lat: Option<f64>,
@@ -139,7 +135,6 @@ impl ClosestQuery {
 ///
 /// Returns a single city that is closest to the coordinates.
 /// If coordinates are not given we fallback to IP geo-location to find the closest featured city.
-#[api_v2_operation]
 pub(crate) async fn closest(
     request: HttpRequest,
     query: Query<ClosestQuery>,
@@ -167,7 +162,7 @@ pub(crate) async fn closest(
 }
 
 /// Query for the `/city/v1/associatedFeatured` endpoint.
-#[derive(Apiv2Schema, Deserialize)]
+#[derive(Deserialize)]
 pub(crate) struct AssociatedFeaturedQuery {
     /// Id of the city to get associated featured city for, positive integer.
     id: u64,
@@ -178,7 +173,6 @@ pub(crate) struct AssociatedFeaturedQuery {
 /// response: [`CityResponse`].
 ///
 /// For a given city id returns the closest featured city.
-#[api_v2_operation]
 pub(crate) async fn associated_featured(
     query: Query<AssociatedFeaturedQuery>,
     app: Data<AppState>,
