@@ -39,7 +39,7 @@ mod stateful {
     pub(crate) mod elasticsearch;
 }
 
-#[actix_rt::main]
+#[actix_web::main]
 async fn main() -> io::Result<()> {
     // Set default log level to info and then init logging.
     if env::var(DEFAULT_FILTER_ENV).is_err() {
