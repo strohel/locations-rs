@@ -5,8 +5,7 @@ authors = ["Matěj Laitl <matej@laitl.cz>"]
 edition = "2018"
 
 [dependencies]
-actix-rt = "1.0"
-actix-web = "2.0"
+actix-web = "3.0"
 elasticsearch = "7.9.0-alpha.1"
 dashmap = "3.9"
 env_logger = "0.7"
