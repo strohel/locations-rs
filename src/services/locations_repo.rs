@@ -21,7 +21,6 @@ use serde_json::{json, to_string_pretty, Value as JsonValue};
 use single::Single;
 use std::{collections::HashMap, fmt};
 use validator::Validate;
-use validator_derive::Validate; // redundant use due to https://github.com/Keats/validator/issues/78
 
 const REGION_INDEX: &str = "region";
 const CITY_INDEX: &str = "city";
