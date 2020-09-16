@@ -15,6 +15,7 @@ Modes:
 
 Options:
   --no-bench        Do not run benchmarks.
+  --check-bad-env   Check that Docker container fails early in case of bad config env vars.
   --log-threads     Log what processes and threads run in the container.
   --bench-url=<p>   Local url (the path part) to use as benchmark [default: /city/v1/get?id=101748111&language=cs].
   --bench-out=<f>   Benchmark output file name. Defaults to `<docker-image>.checks[.bench].json`.
@@ -66,13 +67,16 @@ class Stats:
     requests_per_s: float
 
 
-def test_image(image: str, bench: bool, log_threads_enabled: bool, bench_url: str, groups: list,
-               bench_outfile: str = None):
+def test_image(image: str, bench: bool, check_bad_env: bool, log_threads: bool, bench_url: str,
+               groups: list, bench_outfile: str = None):
     dockerc = docker.from_env()
 
-    # check_doesnt_start_with_env(dockerc, image, 'Does not start without env variables', {})
-    # check_doesnt_start_with_env(dockerc, image, 'Does not start with invalid ES address',
-    #                             {'GOOUT_ELASTIC_HOST': '127.0.0.1', 'GOOUT_ELASTIC_PORT': '56789'})
+    if check_bad_env:
+        check_doesnt_start_with_env(
+            dockerc, image, 'Does not start without env variables', {})
+        check_doesnt_start_with_env(
+            dockerc, image, 'Does not start with invalid ES address',
+            {'GOOUT_ELASTIC_HOST': '127.0.0.1', 'GOOUT_ELASTIC_PORT': '56789'})
 
     session = requests.Session()
 
@@ -88,10 +92,16 @@ def test_image(image: str, bench: bool, log_threads_enabled: bool, bench_url: st
         environment={key: os.environ[key] for key in ('GOOUT_ELASTIC_HOST', 'GOOUT_ELASTIC_PORT')},
     )
 
-    if log_threads_enabled:
-        log_threads(dockerc, session, run_opts, "4 online vCPUs, 4.0 soft CPU limit", cpuset_cpus="0-3", soft_cpus=4.0)
-        log_threads(dockerc, session, run_opts, "4 online vCPUs, 1.0 soft CPU limit (benchmarked)", cpuset_cpus="0-3", soft_cpus=1.0)
-        log_threads(dockerc, session, run_opts, "1 online vCPU, 1.0 soft CPU limit", cpuset_cpus="0", soft_cpus=1.0)
+    if log_threads:
+        log_container_threads(
+            dockerc, session, run_opts, "4 online vCPUs, 4.0 soft CPU limit",
+            cpuset_cpus="0-3", soft_cpus=4.0)
+        log_container_threads(
+            dockerc, session, run_opts, "4 online vCPUs, 1.5 soft CPU limit (benchmarked)",
+            cpuset_cpus="0-3", soft_cpus=1.5)
+        log_container_threads(
+            dockerc, session, run_opts, "1 online vCPU, 1.0 soft CPU limit",
+            cpuset_cpus="0", soft_cpus=1.0)
 
     with run_container(dockerc, run_opts) as container:
         print(f"Container started, to tail its logs: docker logs -f -t {container.id}")
@@ -145,7 +155,7 @@ def log_check(message, value, verbose=True):
     CHECKS[message] = value
 
 
-def log_threads(dockerc, session, run_opts, message, cpuset_cpus, soft_cpus):
+def log_container_threads(dockerc, session, run_opts, message, cpuset_cpus, soft_cpus):
     container = dockerc.containers.run(cpuset_cpus=cpuset_cpus, nano_cpus=int(soft_cpus * 10**9), **run_opts)
     try:
         wait_for_container_ready(session)
@@ -697,5 +707,6 @@ if __name__ == '__main__':
         URL_PREFIX = args['--remote']
         test_local(groups)
     else:
-        test_image(args['<docker-image>'], bench=not args['--no-bench'], log_threads_enabled=args['--log-threads'],
+        test_image(args['<docker-image>'], bench=not args['--no-bench'],
+                   check_bad_env=args['--check-bad-env'], log_threads=args['--log-threads'],
                    bench_url=args['--bench-url'], groups=groups, bench_outfile=args['--bench-out'])
