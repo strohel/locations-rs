@@ -543,6 +543,19 @@ def http_check_associated_featured_invalid(session: requests.Session):
     assert_error_reply(res, 404)
 
 
+@http_check('openapi')
+def http_check_api_docs(session: requests.Session):
+    """HTTP GET /api-docs returns OpenAPI (Swagger) JSON docs"""
+    res = session.get(URL_PREFIX + "/api-docs")
+    assert_ok_json_reply(res)
+    payload = res.json()
+    assert payload.get('openapi') == '3.0.0' or payload.get('swagger') == '2.0', payload
+    assert {'paths', 'info'} <= payload.keys(), payload
+    assert '/city/v1/get' in payload['paths']
+    schemas = payload.get('definitions', {}) or payload.get('components', {}).get('schemas', {})
+    assert {'CityResponse', 'MultiCityResponse'} <= schemas.keys(), payload
+
+
 @dataclass
 class ContainerDied(Exception):
     connections: int = None
