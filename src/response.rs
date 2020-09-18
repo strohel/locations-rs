@@ -1,7 +1,15 @@
 //! OK and error response types to be used by endpoints.
 
-use actix_web::{http::StatusCode, web::Json, ResponseError};
-use paperclip::actix::api_v2_errors;
+use rocket::{
+    catch,
+    http::Status,
+    request::FormParseError,
+    response,
+    response::{status::Custom, Responder},
+    Request,
+};
+use rocket_contrib::json::Json;
+use serde::Serialize;
 use validator::ValidationErrors;
 
 /// Convenience alias for [Result] whose error is [ErrorResponse], to be used by supportive code.
@@ -11,13 +19,6 @@ pub(crate) type HandlerResult<T> = Result<T, ErrorResponse>;
 pub(crate) type JsonResult<T> = HandlerResult<Json<T>>;
 
 /// Possible error endpoint responses.
-#[api_v2_errors(
-    code = 400,
-    description = "Bad Request: client sent something wrong.",
-    code = 404,
-    description = "Not Found: this path or entity does not exist."
-    // code 500 intentionally not propagated to OpenAPI as it provides little value.
-)]
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum ErrorResponse {
     /// HTTP 400 Bad Request: client sent something wrong.
@@ -31,14 +32,23 @@ pub(crate) enum ErrorResponse {
     InternalServerError(String),
 }
 
-/// Make actix-web understand our error responses.
-impl ResponseError for ErrorResponse {
-    fn status_code(&self) -> StatusCode {
-        match self {
-            Self::BadRequest(_) => StatusCode::BAD_REQUEST,
-            Self::NotFound(_) => StatusCode::NOT_FOUND,
-            Self::InternalServerError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+/// Make Rocket understand our error responses.
+impl<'r, 'o: 'r> Responder<'r, 'o> for ErrorResponse {
+    fn respond_to(self, req: &'r Request<'_>) -> response::Result<'o> {
+        let http_status = match self {
+            Self::BadRequest(_) => Status::BadRequest,
+            Self::NotFound(_) => Status::NotFound,
+            Self::InternalServerError(_) => Status::InternalServerError,
+        };
+
+        #[derive(Serialize)]
+        struct ErrorPayload {
+            message: String,
         }
+
+        let payload = ErrorPayload { message: self.to_string() };
+        let response = Custom(http_status, Json(payload));
+        response.respond_to(req)
     }
 }
 
@@ -54,4 +64,20 @@ impl From<ValidationErrors> for ErrorResponse {
     fn from(err: ValidationErrors) -> Self {
         Self::BadRequest(err.to_string())
     }
+}
+
+impl<'f> From<FormParseError<'f>> for ErrorResponse {
+    fn from(err: FormParseError<'f>) -> Self {
+        Self::BadRequest(format!("{:?}", err))
+    }
+}
+
+#[catch(404)]
+pub(crate) fn not_found(req: &Request<'_>) -> ErrorResponse {
+    ErrorResponse::NotFound(req.uri().to_string())
+}
+
+#[catch(500)]
+pub(crate) fn internal_server_error() -> ErrorResponse {
+    ErrorResponse::InternalServerError("Something went wrong.".into())
 }

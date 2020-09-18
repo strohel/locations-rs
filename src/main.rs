@@ -12,18 +12,11 @@
 #![warn(clippy::all)]
 
 use crate::stateful::elasticsearch::WithElastic;
-use actix_web::{
-    http::StatusCode,
-    middleware::{errhandlers::ErrorHandlers, Logger},
-    web::Data,
-    App, HttpServer,
-};
 use elasticsearch::Elasticsearch;
 use env_logger::DEFAULT_FILTER_ENV;
-use paperclip::actix::{web::get, OpenApiExt};
-use std::{env, io};
+use rocket::{self, catchers, routes, State};
+use std::env;
 
-mod error;
 /// Module for endpoint handlers (also known as controllers). This module also serves as an HTTP
 /// REST API documentation for clients.
 mod handlers {
@@ -39,45 +32,41 @@ mod stateful {
     pub(crate) mod elasticsearch;
 }
 
-#[actix_web::main]
-async fn main() -> io::Result<()> {
+#[rocket::main]
+async fn main() {
     // Set default log level to info and then init logging.
     if env::var(DEFAULT_FILTER_ENV).is_err() {
         env::set_var(DEFAULT_FILTER_ENV, "info");
     }
     pretty_env_logger::init_timed();
 
-    let app_state_data = Data::new(AppState::new().await);
-    HttpServer::new(move || {
-        App::new()
-            .app_data(app_state_data.clone())
-            .wrap(
-                ErrorHandlers::new()
-                    .handler(StatusCode::BAD_REQUEST, error::json_error)
-                    .handler(StatusCode::NOT_FOUND, error::json_error)
-                    .handler(StatusCode::INTERNAL_SERVER_ERROR, error::json_error),
-            )
-            .wrap(Logger::default())
-            // Record services and routes for paperclip OpenAPI plugin for Actix.
-            .wrap_api()
-            .route("/city/v1/associatedFeatured", get().to(handlers::city::associated_featured))
-            .route("/city/v1/get", get().to(handlers::city::get))
-            .route("/city/v1/closest", get().to(handlers::city::closest))
-            .route("/city/v1/featured", get().to(handlers::city::featured))
-            .route("/city/v1/search", get().to(handlers::city::search))
-            .with_json_spec_at("/api-docs")
-            .build()
-    })
-    .bind("0.0.0.0:8080")?
-    .run()
-    .await
+    let app_state = App::new().await;
+
+    rocket::ignite()
+        .manage(app_state)
+        .register(catchers![response::not_found, response::internal_server_error])
+        .mount(
+            "/",
+            routes![
+                handlers::city::get,
+                handlers::city::featured,
+                handlers::city::search,
+                handlers::city::closest,
+                handlers::city::associated_featured,
+            ],
+        )
+        .launch()
+        .await
+        .expect("Rocket can be launched");
 }
 
-struct AppState {
+struct App {
     elasticsearch: Elasticsearch,
 }
 
-impl AppState {
+type AppState<'a> = State<'a, App>;
+
+impl App {
     async fn new() -> Self {
         let elasticsearch = stateful::elasticsearch::new().await;
 
@@ -85,7 +74,7 @@ impl AppState {
     }
 }
 
-impl WithElastic for AppState {
+impl WithElastic for AppState<'_> {
     fn elasticsearch(&self) -> &Elasticsearch {
         &self.elasticsearch
     }
