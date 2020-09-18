@@ -1,5 +1,5 @@
 # Build image.
-FROM rust:1.45 as build
+FROM instrumentisto/rust:nightly-2020-08-26 as build
 
 RUN rustc --version
 
