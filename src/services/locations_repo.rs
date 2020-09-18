@@ -7,15 +7,16 @@ use crate::{
     },
     stateful::elasticsearch::WithElastic,
 };
-use actix_web::http::StatusCode;
 use dashmap::DashMap;
 use elasticsearch::{
-    http::response::Response as EsResponse, Error as EsError, GetParts::IndexTypeId,
+    http::{response::Response as EsResponse, StatusCode},
+    Error as EsError,
+    GetParts::IndexTypeId,
     SearchParts::Index,
 };
 use log::{debug, error};
 use once_cell::sync::Lazy;
-use paperclip::actix::Apiv2Schema;
+use rocket::FromFormValue;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, to_string_pretty, Value as JsonValue};
 use single::Single;
@@ -27,8 +28,7 @@ const CITY_INDEX: &str = "city";
 const EXCLUDED_FIELDS: &[&str] = &["geometry", "population"];
 
 /// Language for response localization. Serialized as two-letter ISO 639-1 lowercase language code.
-#[derive(Apiv2Schema, Clone, Copy, Debug, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Clone, Copy, Debug, FromFormValue)]
 pub(crate) enum Language {
     CS,
     DE,

@@ -6,19 +6,21 @@ use crate::{
     stateful::elasticsearch::WithElastic,
     AppState,
 };
-use actix_web::{
-    http::HeaderMap,
-    web::{Data, Json, Query},
-    HttpRequest,
-};
 use futures::{stream::FuturesOrdered, TryStreamExt};
-use paperclip::actix::{api_v2_operation, Apiv2Schema};
-use serde::{Deserialize, Serialize};
+use rocket::{
+    get,
+    http::HeaderMap,
+    outcome::IntoOutcome,
+    request::{FormParseError, FromRequest, LenientForm, Outcome},
+    FromForm, Request,
+};
+use rocket_contrib::json::Json;
+use serde::Serialize;
 use std::cmp::Reverse;
 use validator::Validate;
 
 /// Query for the `/city/v1/get` endpoint.
-#[derive(Apiv2Schema, Deserialize)]
+#[derive(FromForm)]
 pub(crate) struct CityQuery {
     /// Id of the city to get, positive integer.
     id: u64,
@@ -27,7 +29,7 @@ pub(crate) struct CityQuery {
 
 /// `City` API entity. All city endpoints respond with this payload (or a composition of it).
 #[allow(non_snake_case)]
-#[derive(Apiv2Schema, Serialize)]
+#[derive(Serialize)]
 pub(crate) struct CityResponse {
     /// Id of the city, e.g. `123`.
     id: u64,
@@ -41,25 +43,32 @@ pub(crate) struct CityResponse {
     regionName: String,
 }
 
+/// Type alias to parse query parameters using a struct, catching errors, ignoring extra params.
+type Parse<'f, T> = Result<LenientForm<T>, FormParseError<'f>>;
+
 /// The `/city/v1/get` endpoint. HTTP request: [`CityQuery`], response: [`CityResponse`].
 ///
 /// Get city of given ID localized to given language.
-#[api_v2_operation]
-pub(crate) async fn get(query: Query<CityQuery>, app: Data<AppState>) -> JsonResult<CityResponse> {
-    let locations_es_repo = LocationsElasticRepository(app.get_ref());
-    let es_city = locations_es_repo.get_city(query.id).await?;
+#[get("/city/v1/get?<query..>")]
+pub(crate) fn get(query: Parse<'_, CityQuery>, app: AppState<'_>) -> JsonResult<CityResponse> {
+    let query = query?;
+    let locations_es_repo = LocationsElasticRepository(&app);
 
-    Ok(Json(es_city.into_resp(app.get_ref(), query.language).await?))
+    app.block_on(async {
+        let es_city = locations_es_repo.get_city(query.id).await?;
+
+        Ok(Json(es_city.into_resp(&app, query.language).await?))
+    })
 }
 
 /// Query for the `/city/v1/featured` endpoint.
-#[derive(Apiv2Schema, Deserialize)]
+#[derive(FromForm)]
 pub(crate) struct FeaturedQuery {
     language: Language,
 }
 
 /// A list of `City` API entities.
-#[derive(Apiv2Schema, Serialize)]
+#[derive(Serialize)]
 pub(crate) struct MultiCityResponse {
     cities: Vec<CityResponse>,
 }
@@ -67,29 +76,33 @@ pub(crate) struct MultiCityResponse {
 /// The `/city/v1/featured` endpoint. HTTP request: [`FeaturedQuery`], response: [`MultiCityResponse`].
 ///
 /// Returns a list of all featured cities.
-#[api_v2_operation]
-pub(crate) async fn featured(
-    query: Query<FeaturedQuery>,
-    app: Data<AppState>,
+#[get("/city/v1/featured?<query..>")]
+pub(crate) fn featured(
+    query: Parse<'_, FeaturedQuery>,
+    app: AppState<'_>,
 ) -> JsonResult<MultiCityResponse> {
-    let locations_es_repo = LocationsElasticRepository(app.get_ref());
-    let mut es_cities = locations_es_repo.get_featured_cities().await?;
+    let query = query?;
+    let locations_es_repo = LocationsElasticRepository(&app);
 
-    let preferred_country_iso = match query.language {
-        Language::CS => "CZ",
-        Language::DE => "DE",
-        Language::EN => "CZ",
-        Language::PL => "PL",
-        Language::SK => "SK",
-    };
-    es_cities.sort_by_key(|c| Reverse(c.countryIso == preferred_country_iso));
+    app.block_on(async {
+        let mut es_cities = locations_es_repo.get_featured_cities().await?;
 
-    es_cities_into_resp(app.get_ref(), es_cities, query.language).await
+        let preferred_country_iso = match query.language {
+            Language::CS => "CZ",
+            Language::DE => "DE",
+            Language::EN => "CZ",
+            Language::PL => "PL",
+            Language::SK => "SK",
+        };
+        es_cities.sort_by_key(|c| Reverse(c.countryIso == preferred_country_iso));
+
+        es_cities_into_resp(&app, es_cities, query.language).await
+    })
 }
 
 /// Query for the `/city/v1/search` endpoint.
 #[allow(non_snake_case)]
-#[derive(Apiv2Schema, Deserialize)]
+#[derive(FromForm)]
 pub(crate) struct SearchQuery {
     /// The search query.
     query: String,
@@ -102,20 +115,25 @@ pub(crate) struct SearchQuery {
 ///
 /// Returns list of cities matching the 'query' parameter.
 /// The response is limited to 10 cities and no pagination is provided.
-#[api_v2_operation]
-pub(crate) async fn search(
-    query: Query<SearchQuery>,
-    app: Data<AppState>,
+#[get("/city/v1/search?<query..>")]
+pub(crate) fn search(
+    query: Parse<'_, SearchQuery>,
+    app: AppState<'_>,
 ) -> JsonResult<MultiCityResponse> {
-    let locations_es_repo = LocationsElasticRepository(app.get_ref());
-    let es_cities =
-        locations_es_repo.search(&query.query, query.language, query.countryIso.as_deref()).await?;
+    let query = query?;
+    let locations_es_repo = LocationsElasticRepository(&app);
 
-    es_cities_into_resp(app.get_ref(), es_cities, query.language).await
+    app.block_on(async {
+        let es_cities = locations_es_repo
+            .search(&query.query, query.language, query.countryIso.as_deref())
+            .await?;
+
+        es_cities_into_resp(&app, es_cities, query.language).await
+    })
 }
 
 /// Query for the `/city/v1/closest` endpoint.
-#[derive(Apiv2Schema, Deserialize)]
+#[derive(FromForm)]
 pub(crate) struct ClosestQuery {
     /// Latitude in decimal degrees with . as decimal separator.
     lat: Option<f64>,
@@ -139,35 +157,38 @@ impl ClosestQuery {
 ///
 /// Returns a single city that is closest to the coordinates.
 /// If coordinates are not given we fallback to IP geo-location to find the closest featured city.
-#[api_v2_operation]
-pub(crate) async fn closest(
-    request: HttpRequest,
-    query: Query<ClosestQuery>,
-    app: Data<AppState>,
+#[get("/city/v1/closest?<query..>")]
+pub(crate) fn closest(
+    request_header_coords: Option<Coordinates>,
+    query: Parse<'_, ClosestQuery>,
+    app: AppState<'_>,
 ) -> JsonResult<CityResponse> {
-    let locations_es_repo = LocationsElasticRepository(app.get_ref());
+    let query = query?;
+    let locations_es_repo = LocationsElasticRepository(&app);
 
-    let es_city = if let Some(coords) = query.coordinates()? {
-        coords.validate()?; // validate explicitly, we don't want to validate when loading from ES.
-        locations_es_repo.get_city_by_coords(coords, None).await?
-    } else if let Some(coords) = get_request_fastly_geo_coords(request.headers()) {
-        locations_es_repo.get_city_by_coords(coords, Some(true)).await?
-    } else {
-        let city_id = match query.language {
-            Language::CS => 101_748_113,   // Prague
-            Language::DE => 101_909_779,   // Berlin
-            Language::EN => 101_748_113,   // also Prague
-            Language::PL => 101_752_777,   // Warsaw
-            Language::SK => 1_108_800_123, // Bratislava
+    app.block_on(async {
+        let es_city = if let Some(coords) = query.coordinates()? {
+            coords.validate()?; // validate explicitly, we don't want to validate when loading from ES.
+            locations_es_repo.get_city_by_coords(coords, None).await?
+        } else if let Some(coords) = request_header_coords {
+            locations_es_repo.get_city_by_coords(coords, Some(true)).await?
+        } else {
+            let city_id = match query.language {
+                Language::CS => 101_748_113,   // Prague
+                Language::DE => 101_909_779,   // Berlin
+                Language::EN => 101_748_113,   // also Prague
+                Language::PL => 101_752_777,   // Warsaw
+                Language::SK => 1_108_800_123, // Bratislava
+            };
+            locations_es_repo.get_city(city_id).await?
         };
-        locations_es_repo.get_city(city_id).await?
-    };
 
-    Ok(Json(es_city.into_resp(app.get_ref(), query.language).await?))
+        Ok(Json(es_city.into_resp(&app, query.language).await?))
+    })
 }
 
 /// Query for the `/city/v1/associatedFeatured` endpoint.
-#[derive(Apiv2Schema, Deserialize)]
+#[derive(FromForm)]
 pub(crate) struct AssociatedFeaturedQuery {
     /// Id of the city to get associated featured city for, positive integer.
     id: u64,
@@ -178,24 +199,36 @@ pub(crate) struct AssociatedFeaturedQuery {
 /// response: [`CityResponse`].
 ///
 /// For a given city id returns the closest featured city.
-#[api_v2_operation]
-pub(crate) async fn associated_featured(
-    query: Query<AssociatedFeaturedQuery>,
-    app: Data<AppState>,
+#[get("/city/v1/associatedFeatured?<query..>")]
+pub(crate) fn associated_featured(
+    query: Parse<'_, AssociatedFeaturedQuery>,
+    app: AppState<'_>,
 ) -> JsonResult<CityResponse> {
-    let locations_es_repo = LocationsElasticRepository(app.get_ref());
-    let mut es_city = locations_es_repo.get_city(query.id).await?;
-    if !es_city.isFeatured {
-        es_city = locations_es_repo.get_closest_city(es_city.centroid, Some(true)).await?;
-    }
+    let query = query?;
+    let locations_es_repo = LocationsElasticRepository(&app);
 
-    Ok(Json(es_city.into_resp(app.get_ref(), query.language).await?))
+    app.block_on(async {
+        let mut es_city = locations_es_repo.get_city(query.id).await?;
+        if !es_city.isFeatured {
+            es_city = locations_es_repo.get_closest_city(es_city.centroid, Some(true)).await?;
+        }
+
+        Ok(Json(es_city.into_resp(&app, query.language).await?))
+    })
+}
+
+/// Implement Rocket request guard to parse coords from request headers. "Forwards" if not found.
+impl<'a, 'r> FromRequest<'a, 'r> for Coordinates {
+    type Error = ();
+    fn from_request(request: &'a Request<'r>) -> Outcome<Self, Self::Error> {
+        get_request_fastly_geo_coords(request.headers()).or_forward(())
+    }
 }
 
 /// Get [Coordinates] out of Fastly Geo headers or [None] if they are not set or are invalid.
-fn get_request_fastly_geo_coords(headers: &HeaderMap) -> Option<Coordinates> {
-    let lat = headers.get("Fastly-Geo-Lat")?.to_str().ok()?;
-    let lon = headers.get("Fastly-Geo-Lon")?.to_str().ok()?;
+fn get_request_fastly_geo_coords(headers: &HeaderMap<'_>) -> Option<Coordinates> {
+    let lat = headers.get_one("Fastly-Geo-Lat")?;
+    let lon = headers.get_one("Fastly-Geo-Lon")?;
     let coords = Coordinates { lat: lat.parse().ok()?, lon: lon.parse().ok()? };
 
     if coords.lat == 0.0 && coords.lon == 0.0 {

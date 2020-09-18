@@ -10,20 +10,16 @@
 #![warn(missing_copy_implementations, missing_debug_implementations)]
 // Turn on some extra Clippy (Rust code linter) warnings. Run `cargo clippy`.
 #![warn(clippy::all)]
+// Rocket v0.4 needs this nightly feature
+#![feature(decl_macro)]
 
 use crate::stateful::elasticsearch::WithElastic;
-use actix_web::{
-    http::StatusCode,
-    middleware::{errhandlers::ErrorHandlers, Logger},
-    web::Data,
-    App, HttpServer,
-};
 use elasticsearch::Elasticsearch;
 use env_logger::DEFAULT_FILTER_ENV;
-use paperclip::actix::{web::get, OpenApiExt};
-use std::{env, io};
+use rocket::{catchers, routes, State};
+use std::{env, future::Future};
+use tokio::runtime::Runtime;
 
-mod error;
 /// Module for endpoint handlers (also known as controllers). This module also serves as an HTTP
 /// REST API documentation for clients.
 mod handlers {
@@ -39,53 +35,53 @@ mod stateful {
     pub(crate) mod elasticsearch;
 }
 
-#[actix_web::main]
-async fn main() -> io::Result<()> {
+fn main() {
     // Set default log level to info and then init logging.
     if env::var(DEFAULT_FILTER_ENV).is_err() {
         env::set_var(DEFAULT_FILTER_ENV, "info");
     }
     pretty_env_logger::init_timed();
 
-    let app_state_data = Data::new(AppState::new().await);
-    HttpServer::new(move || {
-        App::new()
-            .app_data(app_state_data.clone())
-            .wrap(
-                ErrorHandlers::new()
-                    .handler(StatusCode::BAD_REQUEST, error::json_error)
-                    .handler(StatusCode::NOT_FOUND, error::json_error)
-                    .handler(StatusCode::INTERNAL_SERVER_ERROR, error::json_error),
-            )
-            .wrap(Logger::default())
-            // Record services and routes for paperclip OpenAPI plugin for Actix.
-            .wrap_api()
-            .route("/city/v1/associatedFeatured", get().to(handlers::city::associated_featured))
-            .route("/city/v1/get", get().to(handlers::city::get))
-            .route("/city/v1/closest", get().to(handlers::city::closest))
-            .route("/city/v1/featured", get().to(handlers::city::featured))
-            .route("/city/v1/search", get().to(handlers::city::search))
-            .with_json_spec_at("/api-docs")
-            .build()
-    })
-    .bind("0.0.0.0:8080")?
-    .run()
-    .await
+    let app_state = App::new();
+
+    rocket::ignite()
+        .manage(app_state)
+        .register(catchers![response::not_found, response::internal_server_error])
+        .mount(
+            "/",
+            routes![
+                handlers::city::get,
+                handlers::city::featured,
+                handlers::city::search,
+                handlers::city::closest,
+                handlers::city::associated_featured,
+            ],
+        )
+        .launch();
 }
 
-struct AppState {
+struct App {
     elasticsearch: Elasticsearch,
+    async_rt: Runtime,
 }
 
-impl AppState {
-    async fn new() -> Self {
-        let elasticsearch = stateful::elasticsearch::new().await;
+type AppState<'a> = State<'a, App>;
 
-        Self { elasticsearch }
+impl App {
+    fn new() -> Self {
+        let rt = Runtime::new().expect("Tokio runtime can be created");
+        let elasticsearch = rt.handle().block_on(stateful::elasticsearch::new());
+
+        Self { elasticsearch, async_rt: rt }
+    }
+
+    /// Run given future in async runtime and block current thread until it resolves.
+    fn block_on<F: Future>(&self, future: F) -> F::Output {
+        self.async_rt.handle().block_on(future)
     }
 }
 
-impl WithElastic for AppState {
+impl WithElastic for AppState<'_> {
     fn elasticsearch(&self) -> &Elasticsearch {
         &self.elasticsearch
     }
