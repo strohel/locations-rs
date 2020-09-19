@@ -21,7 +21,7 @@ serde_json = "1.0"
 schemars = "0.7"  # required by rocket_okapi even though not directly used
 single = "1.0"
 thiserror = "1.0"
-tokio = { version = "0.2", features = ["full"] }
+tokio = { version = "0.2", features = ["rt-core"] }
 validator = { version = "0.11", features = ["derive"] }
 
 [profile.release]

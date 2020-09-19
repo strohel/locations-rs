@@ -23,7 +23,7 @@ use rocket_okapi::{
     swagger_ui::{make_swagger_ui, SwaggerUIConfig},
 };
 use std::{env, future::Future};
-use tokio::runtime::Runtime;
+use tokio::runtime::{self, Runtime};
 
 /// Module for endpoint handlers (also known as controllers). This module also serves as an HTTP
 /// REST API documentation for clients.
@@ -76,23 +76,29 @@ fn main() {
 
 struct App {
     elasticsearch: Elasticsearch,
-    async_rt: Runtime,
 }
 
 type AppState<'a> = State<'a, App>;
 
 impl App {
     fn new() -> Self {
-        let rt = Runtime::new().expect("Tokio runtime can be created");
-        let elasticsearch = rt.handle().block_on(stateful::elasticsearch::new());
+        let elasticsearch = create_async_rt().block_on(stateful::elasticsearch::new());
 
-        Self { elasticsearch, async_rt: rt }
+        Self { elasticsearch }
     }
 
     /// Run given future in async runtime and block current thread until it resolves.
     fn block_on<F: Future>(&self, future: F) -> F::Output {
-        self.async_rt.handle().block_on(future)
+        create_async_rt().block_on(future)
     }
+}
+
+fn create_async_rt() -> Runtime {
+    runtime::Builder::new()
+        .basic_scheduler()
+        .enable_all()
+        .build()
+        .expect("Tokio runtime can be created")
 }
 
 impl WithElastic for AppState<'_> {
