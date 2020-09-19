@@ -17,6 +17,7 @@ use elasticsearch::{
 use log::{debug, error};
 use once_cell::sync::Lazy;
 use rocket::FromFormValue;
+use rocket_okapi::JsonSchema;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, to_string_pretty, Value as JsonValue};
 use single::Single;
@@ -28,7 +29,8 @@ const CITY_INDEX: &str = "city";
 const EXCLUDED_FIELDS: &[&str] = &["geometry", "population"];
 
 /// Language for response localization. Serialized as two-letter ISO 639-1 lowercase language code.
-#[derive(Clone, Copy, Debug, FromFormValue)]
+#[serde(rename_all = "lowercase")] // Not used by Rocket itself, but *is* used by rocket_okapi.
+#[derive(Clone, Copy, Debug, FromFormValue, JsonSchema)]
 pub(crate) enum Language {
     CS,
     DE,

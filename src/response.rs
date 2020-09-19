@@ -1,5 +1,6 @@
 //! OK and error response types to be used by endpoints.
 
+use okapi::openapi3::Responses;
 use rocket::{
     catch,
     http::Status,
@@ -9,6 +10,10 @@ use rocket::{
     Request,
 };
 use rocket_contrib::json::Json;
+use rocket_okapi::{
+    gen::OpenApiGenerator, response::OpenApiResponder, util::add_schema_response, JsonSchema,
+    OpenApiError,
+};
 use serde::Serialize;
 use validator::ValidationErrors;
 
@@ -32,6 +37,11 @@ pub(crate) enum ErrorResponse {
     InternalServerError(String),
 }
 
+#[derive(JsonSchema, Serialize)]
+struct ErrorPayload {
+    message: String,
+}
+
 /// Make Rocket understand our error responses.
 impl<'r> Responder<'r> for ErrorResponse {
     fn respond_to(self, req: &Request<'_>) -> response::Result<'r> {
@@ -41,14 +51,21 @@ impl<'r> Responder<'r> for ErrorResponse {
             Self::InternalServerError(_) => Status::InternalServerError,
         };
 
-        #[derive(Serialize)]
-        struct ErrorPayload {
-            message: String,
-        }
-
         let payload = ErrorPayload { message: self.to_string() };
         let response = Custom(http_status, Json(payload));
         response.respond_to(req)
+    }
+}
+
+impl OpenApiResponder<'_> for ErrorResponse {
+    fn responses(gen: &mut OpenApiGenerator) -> Result<Responses, OpenApiError> {
+        // implementation stolen from rocket_okapi::response::responder_impls
+        let mut responses = Responses::default();
+        let schema = gen.json_schema::<ErrorPayload>();
+        for &status_code in &[400, 404, 500] {
+            add_schema_response(&mut responses, status_code, "application/json", schema.clone())?;
+        }
+        Ok(responses)
     }
 }
 

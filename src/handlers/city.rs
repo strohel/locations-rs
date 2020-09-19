@@ -15,12 +15,13 @@ use rocket::{
     FromForm, Request,
 };
 use rocket_contrib::json::Json;
+use rocket_okapi::{openapi, JsonSchema};
 use serde::Serialize;
 use std::cmp::Reverse;
 use validator::Validate;
 
 /// Query for the `/city/v1/get` endpoint.
-#[derive(FromForm)]
+#[derive(JsonSchema, FromForm)]
 pub(crate) struct CityQuery {
     /// Id of the city to get, positive integer.
     id: u64,
@@ -29,7 +30,7 @@ pub(crate) struct CityQuery {
 
 /// `City` API entity. All city endpoints respond with this payload (or a composition of it).
 #[allow(non_snake_case)]
-#[derive(Serialize)]
+#[derive(JsonSchema, Serialize)]
 pub(crate) struct CityResponse {
     /// Id of the city, e.g. `123`.
     id: u64,
@@ -49,6 +50,7 @@ type Parse<'f, T> = Result<LenientForm<T>, FormParseError<'f>>;
 /// The `/city/v1/get` endpoint. HTTP request: [`CityQuery`], response: [`CityResponse`].
 ///
 /// Get city of given ID localized to given language.
+#[openapi]
 #[get("/city/v1/get?<query..>")]
 pub(crate) fn get(query: Parse<'_, CityQuery>, app: AppState<'_>) -> JsonResult<CityResponse> {
     let query = query?;
@@ -62,13 +64,13 @@ pub(crate) fn get(query: Parse<'_, CityQuery>, app: AppState<'_>) -> JsonResult<
 }
 
 /// Query for the `/city/v1/featured` endpoint.
-#[derive(FromForm)]
+#[derive(JsonSchema, FromForm)]
 pub(crate) struct FeaturedQuery {
     language: Language,
 }
 
 /// A list of `City` API entities.
-#[derive(Serialize)]
+#[derive(JsonSchema, Serialize)]
 pub(crate) struct MultiCityResponse {
     cities: Vec<CityResponse>,
 }
@@ -76,6 +78,7 @@ pub(crate) struct MultiCityResponse {
 /// The `/city/v1/featured` endpoint. HTTP request: [`FeaturedQuery`], response: [`MultiCityResponse`].
 ///
 /// Returns a list of all featured cities.
+#[openapi]
 #[get("/city/v1/featured?<query..>")]
 pub(crate) fn featured(
     query: Parse<'_, FeaturedQuery>,
@@ -102,7 +105,7 @@ pub(crate) fn featured(
 
 /// Query for the `/city/v1/search` endpoint.
 #[allow(non_snake_case)]
-#[derive(FromForm)]
+#[derive(JsonSchema, FromForm)]
 pub(crate) struct SearchQuery {
     /// The search query.
     query: String,
@@ -115,6 +118,7 @@ pub(crate) struct SearchQuery {
 ///
 /// Returns list of cities matching the 'query' parameter.
 /// The response is limited to 10 cities and no pagination is provided.
+#[openapi]
 #[get("/city/v1/search?<query..>")]
 pub(crate) fn search(
     query: Parse<'_, SearchQuery>,
@@ -133,7 +137,7 @@ pub(crate) fn search(
 }
 
 /// Query for the `/city/v1/closest` endpoint.
-#[derive(FromForm)]
+#[derive(JsonSchema, FromForm)]
 pub(crate) struct ClosestQuery {
     /// Latitude in decimal degrees with . as decimal separator.
     lat: Option<f64>,
@@ -157,6 +161,7 @@ impl ClosestQuery {
 ///
 /// Returns a single city that is closest to the coordinates.
 /// If coordinates are not given we fallback to IP geo-location to find the closest featured city.
+#[openapi]
 #[get("/city/v1/closest?<query..>")]
 pub(crate) fn closest(
     request_header_coords: Option<Coordinates>,
@@ -188,7 +193,7 @@ pub(crate) fn closest(
 }
 
 /// Query for the `/city/v1/associatedFeatured` endpoint.
-#[derive(FromForm)]
+#[derive(JsonSchema, FromForm)]
 pub(crate) struct AssociatedFeaturedQuery {
     /// Id of the city to get associated featured city for, positive integer.
     id: u64,
@@ -199,6 +204,7 @@ pub(crate) struct AssociatedFeaturedQuery {
 /// response: [`CityResponse`].
 ///
 /// For a given city id returns the closest featured city.
+#[openapi]
 #[get("/city/v1/associatedFeatured?<query..>")]
 pub(crate) fn associated_featured(
     query: Parse<'_, AssociatedFeaturedQuery>,

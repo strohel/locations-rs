@@ -16,7 +16,12 @@
 use crate::stateful::elasticsearch::WithElastic;
 use elasticsearch::Elasticsearch;
 use env_logger::DEFAULT_FILTER_ENV;
-use rocket::{catchers, routes, State};
+use rocket::{catchers, State};
+use rocket_okapi::{
+    handlers::RedirectHandler,
+    routes_with_openapi,
+    swagger_ui::{make_swagger_ui, SwaggerUIConfig},
+};
 use std::{env, future::Future};
 use tokio::runtime::Runtime;
 
@@ -49,13 +54,22 @@ fn main() {
         .register(catchers![response::not_found, response::internal_server_error])
         .mount(
             "/",
-            routes![
+            routes_with_openapi![
                 handlers::city::get,
                 handlers::city::featured,
                 handlers::city::search,
                 handlers::city::closest,
                 handlers::city::associated_featured,
             ],
+        )
+        // I was unable to customize OpenAPI spec location, so just redirect to it:
+        .mount("/", vec![RedirectHandler::to("/openapi.json").into_route("/api-docs")])
+        .mount(
+            "/docs",
+            make_swagger_ui(&SwaggerUIConfig {
+                url: "/openapi.json".to_owned(),
+                ..Default::default()
+            }),
         )
         .launch();
 }
