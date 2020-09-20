@@ -16,13 +16,14 @@
 use crate::stateful::elasticsearch::WithElastic;
 use elasticsearch::Elasticsearch;
 use env_logger::DEFAULT_FILTER_ENV;
+use log::info;
 use rocket::{catchers, State};
 use rocket_okapi::{
     handlers::RedirectHandler,
     routes_with_openapi,
     swagger_ui::{make_swagger_ui, SwaggerUIConfig},
 };
-use std::{env, future::Future};
+use std::{cell::RefCell, env, future::Future, rc::Rc, thread};
 use tokio::runtime::{self, Runtime};
 
 /// Module for endpoint handlers (also known as controllers). This module also serves as an HTTP
@@ -74,26 +75,33 @@ fn main() {
         .launch();
 }
 
-struct App {
-    elasticsearch: Elasticsearch,
+struct App {}
+
+thread_local! {
+    // RefCell because Runtime::block_on() needs mutable reference.
+    static RT: RefCell<Runtime> = RefCell::new(create_async_rt());
+    // Rc because we want the Elasticsearch reference to escape LocalKey::with().
+    static ES: Rc<Elasticsearch> = Rc::new(stateful::elasticsearch::new_pingless());
 }
 
 type AppState<'a> = State<'a, App>;
 
 impl App {
     fn new() -> Self {
-        let elasticsearch = create_async_rt().block_on(stateful::elasticsearch::new());
+        // Don't use thread-local variables here - main thread is not reused for Rocket workers.
+        create_async_rt().block_on(stateful::elasticsearch::new()); // Ping Elastic or panic.
 
-        Self { elasticsearch }
+        Self {}
     }
 
     /// Run given future in async runtime and block current thread until it resolves.
     fn block_on<F: Future>(&self, future: F) -> F::Output {
-        create_async_rt().block_on(future)
+        RT.with(|rt_cell| rt_cell.borrow_mut().block_on(future))
     }
 }
 
 fn create_async_rt() -> Runtime {
+    info!("Creating basic Tokio runtime from {:?}", thread::current());
     runtime::Builder::new()
         .basic_scheduler()
         .enable_all()
@@ -102,7 +110,7 @@ fn create_async_rt() -> Runtime {
 }
 
 impl WithElastic for AppState<'_> {
-    fn elasticsearch(&self) -> &Elasticsearch {
-        &self.elasticsearch
+    fn elasticsearch(&self) -> Rc<Elasticsearch> {
+        ES.with(|es| Rc::clone(es))
     }
 }

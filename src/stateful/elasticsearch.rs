@@ -2,12 +2,12 @@
 
 use elasticsearch::{http::transport::Transport, Elasticsearch};
 use log::info;
-use std::{env, thread};
+use std::{env, rc::Rc, thread};
 
 /// Trait to be implemented by application states that contain stateful Elasticsearch client.
 pub(crate) trait WithElastic {
     /// Get reference to stateful Elasticsearch client.
-    fn elasticsearch(&self) -> &Elasticsearch;
+    fn elasticsearch(&self) -> Rc<Elasticsearch>;
 }
 
 pub(crate) fn new_pingless() -> Elasticsearch {
