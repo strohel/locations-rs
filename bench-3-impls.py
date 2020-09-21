@@ -21,9 +21,11 @@ IMAGE_BASE = 'gcr.io/strohel-goout-calendar/locations'
 
 def main(runs):
     tags = (
-        'kt-http4k',
-        'kt-ktor',
-        'rs-actix',
+        'rocket-v04-semiasync-noka',
+        'rocket-v04-semiasync-nookapi',
+        'rocket-v04-semiasync-okapi',
+        'rocket-v04-perreqrt',
+        'rocket-v04-perthreadrt',
     )
 
     script_path = Path(__file__)
@@ -39,7 +41,7 @@ def main(runs):
                 continue
 
             try:
-                run([test_image, f'{IMAGE_BASE}:{tag}', '--http-checks=get', '--bench-out', outfile], check=True)
+                run([test_image, f'{IMAGE_BASE}:{tag}', '--check-bad-env', '--log-threads', '--bench-out', outfile], check=True)
             except subprocess.CalledProcessError:
                 print('Called process exited with non-zero exit status, but continuing.')
 
