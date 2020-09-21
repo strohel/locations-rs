@@ -751,8 +751,7 @@ dependencies = [
 [[package]]
 name = "hyper"
 version = "0.10.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a0652d9a2609a968c14be1a9ea00bf4b1d64e2e1f53a1b51b6fff3a6e829273"
+source = "git+https://github.com/strohel/hyper.git?branch=0.10.x#3109103b57fa1bbc3a1349ff6b196e5d2554aba9"
 dependencies = [
  "base64 0.9.3",
  "httparse",

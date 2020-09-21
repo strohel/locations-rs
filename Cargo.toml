@@ -24,3 +24,6 @@ validator = { version = "0.11", features = ["derive"] }
 [profile.release]
 lto = "fat"
 codegen-units = 1
+
+[patch.crates-io]
+hyper = { version = "0.10", git = "https://github.com/strohel/hyper.git", branch = "0.10.x" }
