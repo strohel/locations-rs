@@ -15,7 +15,6 @@ use crate::stateful::elasticsearch::WithElastic;
 use actix_web::{
     http::StatusCode,
     middleware::{errhandlers::ErrorHandlers, Logger},
-    web::Data,
     App, HttpServer,
 };
 use elasticsearch::Elasticsearch;
@@ -47,10 +46,11 @@ async fn main() -> io::Result<()> {
     }
     pretty_env_logger::init_timed();
 
-    let app_state_data = Data::new(AppState::new().await);
+    stateful::elasticsearch::new().await; // Ping Elastic or panic.
+
     HttpServer::new(move || {
         App::new()
-            .app_data(app_state_data.clone())
+            .data(AppState::new())
             .wrap(
                 ErrorHandlers::new()
                     .handler(StatusCode::BAD_REQUEST, error::json_error)
@@ -78,8 +78,8 @@ struct AppState {
 }
 
 impl AppState {
-    async fn new() -> Self {
-        let elasticsearch = stateful::elasticsearch::new().await;
+    fn new() -> Self {
+        let elasticsearch = stateful::elasticsearch::new_pingless();
 
         Self { elasticsearch }
     }
