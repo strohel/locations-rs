@@ -21,10 +21,13 @@ IMAGE_BASE = 'gcr.io/strohel-goout-calendar/locations'
 
 def main(runs):
     tags = (
+        'actix-v30-globales',
+        'actix-v30-perworkeres',
         'rocket-v04-semiasync-noka',
         'rocket-v04-semiasync-nookapi',
         'rocket-v04-semiasync-okapi',
         'rocket-v04-perreqrt',
+        'rocket-v04-perreqrtandes',
         'rocket-v04-perthreadrt',
     )
 
