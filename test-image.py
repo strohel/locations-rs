@@ -123,7 +123,11 @@ def test_image(image: str, bench: bool, check_bad_env: bool, log_threads: bool, 
             run_benchmark(container, connection_count, bench_url)
 
         # Do one last HTTP call to ensure container is still alive and ready
-        http_check_plzen_cs(session)
+        try:
+            http_check_plzen_cs(session)
+        except requests.ConnectionError as e:
+            print(f'{e} when final http check, retry with a fresh session.')
+            http_check_plzen_cs(requests.Session())
 
     if not bench_outfile:
         sane_name = re.sub('[^a-z0-9]+', '-', image)
@@ -219,6 +223,9 @@ def check(func, *args):
         value = "Bad"
         failed_line = traceback.extract_tb(sys.exc_info()[2])[-1].line  # magic to extract the "assert line"
         print(f"Bad: {failed_line}: {e}")
+    except requests.ConnectionError as e:
+        value = "ConnErr"
+        print(f'ConnErr: {e}')
     else:
         value = "Good"
         print(value)
