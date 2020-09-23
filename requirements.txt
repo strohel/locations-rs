@@ -5,3 +5,4 @@ requests
 # Dependencies of render-tests.py:
 marko
 pygal
+natsort

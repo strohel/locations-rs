@@ -13,6 +13,8 @@ import json
 from pathlib import Path
 from string import digits
 
+from natsort import natsorted
+
 try:
     from docopt import docopt
     from marko.ext.gfm import gfm
@@ -31,7 +33,7 @@ def render():
         with open(filepath) as fp:
             suites[name] = json.load(fp)
 
-    names = sorted(suites.keys())
+    names = natsorted(suites.keys())
 
     figure_filenames = render_figures(names, suites)
 
