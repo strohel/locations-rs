@@ -91,6 +91,10 @@ def test_image(image: str, bench: bool, check_bad_env: bool, log_threads: bool, 
         memswap_limit=mem_limit,  # Set to the same value as mem_limit to disable swap.
         environment={key: os.environ[key] for key in ('GOOUT_ELASTIC_HOST', 'GOOUT_ELASTIC_PORT')},
     )
+    # Add all Rocket config variables from the calling environment to Docker environment
+    for key, value in os.environ.items():
+        if key.startswith('ROCKET_'):
+            run_opts['environment'][key] = value
 
     if log_threads:
         log_container_threads(
