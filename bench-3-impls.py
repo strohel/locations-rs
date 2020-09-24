@@ -9,7 +9,7 @@ Usage:
 Options:
   --runs=<n>    Number of runs to perform [default: 4].
 """
-
+import os
 from pathlib import Path
 import subprocess
 
@@ -21,14 +21,9 @@ IMAGE_BASE = 'gcr.io/strohel-goout-calendar/locations'
 
 def main(runs):
     tags = (
-        'actix-v30-globales',
-        'actix-v30-perworkeres',
-        'rocket-v04-semiasync-noka',
-        'rocket-v04-semiasync-nookapi',
-        'rocket-v04-semiasync-okapi',
-        'rocket-v04-perreqrt',
-        'rocket-v04-perreqrtandes',
-        'rocket-v04-perthreadrt',
+        ('actix-v30', {}),
+        ('rocket-v04', {'ROCKET_WORKERS': '16', 'ROCKET_KEEP_ALIVE': '0'}),
+        ('rocket-v05-dev', {}),
     )
 
     script_path = Path(__file__)
@@ -37,14 +32,16 @@ def main(runs):
     render_tests = str(script_dir / 'render-tests.py')
 
     for i in range(1, runs + 1):
-        for tag in tags:
+        for tag, env_overrides in tags:
             outfile = f'{tag}-{i}.checks.bench.json'
             if Path(outfile).exists():
                 print(f'{outfile} exists, skipping this benchmark.')
                 continue
 
+            env = {**os.environ, **env_overrides}
             try:
-                run([test_image, f'{IMAGE_BASE}:{tag}', '--check-bad-env', '--log-threads', '--bench-out', outfile], check=True)
+                run([test_image, f'{IMAGE_BASE}:{tag}', '--check-bad-env', '--log-threads', '--bench-out', outfile],
+                    check=True, env=env)
             except subprocess.CalledProcessError:
                 print('Called process exited with non-zero exit status, but continuing.')
 
