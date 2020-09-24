@@ -232,6 +232,19 @@ def div_or_none(numerator, denominator, scale=1):
     return scale * numerator / denominator
 
 
+HTML_PREFIX = '''<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Benchmark Report</title>
+  </head>
+  <body>
+'''
+HTML_SUFFIX = '''  </body>
+</html>
+'''
+
+
 def render_html(md_file, html_file):
     with open(md_file) as in_fp, open(html_file, 'w') as out_fp:
         rs = in_fp.read()
@@ -240,7 +253,9 @@ def render_html(md_file, html_file):
         html = html.replace('<img', '<embed')
         # Replace link to md with link to .html for better browsability at HTML level.
         html = html.replace('/README.md">full benchmark', '/README.html">full benchmark')
+        out_fp.write(HTML_PREFIX)
         out_fp.write(html)
+        out_fp.write(HTML_SUFFIX)
     print(f'HTML output written to {html_file.resolve().as_uri()}.')
 
 
