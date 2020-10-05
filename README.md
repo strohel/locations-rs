@@ -1,6 +1,6 @@
 # locations-rs (Locations Service in Rust)
 
-Little proof-of-concept webservice in Rust, using [Actix](https://actix.rs/) web framework.
+Small but production-ready webservice in Rust, using [Actix](https://actix.rs/) web framework.
 
 The service implements [an API specification](api-spec.md) of one feature for
 [goout.net platform](https://goout.net/). It was shadow-developed alongside main implementation in
