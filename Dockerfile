@@ -16,6 +16,7 @@ FROM bitnami/minideb:buster
 RUN install_packages dumb-init libssl1.1 libcurl4
 
 COPY --from=build /install/bin/locations-rs /
+COPY Rocket.toml /
 
 # Use dumb-init to correctly handle signals in PID 1.
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]

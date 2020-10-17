@@ -3,3 +3,4 @@
 !src
 !Cargo.toml
 !Cargo.lock
+!Rocket.toml
